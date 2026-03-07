@@ -159,3 +159,7 @@ help:
 	@echo "  1. make              # Compilar tudo"
 	@echo "  2. make datasets     # Gerar dados"
 	@echo "  3. make run-tests    # Testar"
+	
+# A nossa regra para compilar o projeto principal
+logAnalyzer: main.c logAnalyzer.c log_parser.c event_classifier.c
+	gcc -Wall -Wextra -O2 main.c logAnalyzer.c log_parser.c event_classifier.c -o logAnalyzer
