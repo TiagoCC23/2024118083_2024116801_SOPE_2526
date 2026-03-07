@@ -1,55 +1,27 @@
-# Prerequisites
-*.d
-
-# Object files
+# 1. Ficheiros compilados de C (Obrigatório)
 *.o
-*.ko
-*.obj
-*.elf
-
-# Linker output
-*.ilk
-*.map
-*.exp
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Libraries
-*.lib
-*.a
-*.la
-*.lo
-
-# Shared objects (inc. Windows DLLs)
-*.dll
-*.so
-*.so.*
-*.dylib
-
-# Executables
-*.exe
 *.out
-*.app
-*.i*86
-*.x86_64
-*.hex
 
-# Debug files
-*.dSYM/
-*.su
-*.idb
-*.pdb
+# 2. Os executáveis do vosso projeto
+logAnalyzer
+gen_apache
+gen_json
+gen_syslog
+gen_nginx
+test_parsers
+test_classifier
 
-# Kernel Module Compile Results
-*.mod*
-*.cmd
-.tmp_versions/
-modules.order
-Module.symvers
-Mkfile.old
-dkms.conf
+# 3. Os ficheiros de Log Gigantes (MUITO IMPORTANTE!)
+datasets/apache/*.log
+datasets/json_logs/*.json
+datasets/syslog/*.log
+datasets/nginx/*.log
+*.txt
 
-# debug information files
-*.dwo
+# 4. Ficheiros de entrega (para não irem para o GitHub por engano)
+*.tar.gz
+*.zip
+
+# 5. Ficheiros de Sistema e Editores (VS Code e Mac)
+.DS_Store
+.vscode/
