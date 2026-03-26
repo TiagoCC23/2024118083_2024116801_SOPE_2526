@@ -2,9 +2,13 @@
 #define LOG_ANALYZER_H
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <fcntl.h>
 #include <string.h>
 #include "logAnalyzer.h"
 #include "event_classifier.h"
+
 
 
 typedef struct config
@@ -17,5 +21,6 @@ typedef struct config
 } CONFIG;
 
 void parseArguments(int argc, char *argv[], CONFIG *config);
+void logWorker(CONFIG config);
 
 #endif
