@@ -6,4 +6,23 @@
 #include <stdlib.h>     // exit, EXIT_FAILURE
 #include <errno.h>      // errno, EINTR
 #include <string.h>     // strcmp, strlen
+#include <sys/types.h>  // para pid_t
 
+typedef struct {
+    pid_t pid;
+    long total_lines;
+    long errors;
+    long warnings;
+    char top_ip[16]; 
+    int is_event; // 0 = resultado final; 1 = evento em tempo real
+    char timestamp[32];
+    char type[16];
+    char message[256]; // menssagem a ser escrita
+    char ip[16];
+} PipeMessage;
+
+typedef struct {
+    pid_t pid;
+    long lines_processed;
+    long total_lines;
+} ProgressUpdate;
