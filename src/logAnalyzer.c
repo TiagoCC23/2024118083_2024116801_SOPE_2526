@@ -41,6 +41,7 @@ void parseArguments(int argc, char *argv[], CONFIG *config){
     }
     
 }
+
 void logWorker(CONFIG *config) {
     int nWorkers = config->numProcessos;
     __pid_t pids[nWorkers];
