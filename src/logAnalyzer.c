@@ -77,7 +77,12 @@ void logWorker(CONFIG *config) {
             
             while ((bytesLidos = read(fdsDuplo[i][0], buffer, sizeof(buffer) - 1)) > 0) {
                 buffer[bytesLidos] = '\0';
-                printf("Worker %d recebeu: %s", i, buffer);
+                 printf("Worker %d recebeu: %s", i, buffer);
+                ApacheLogEntry log_processado;
+                if(parse_apache_log(buffer, &log_processado)==0){
+
+                }
+               
             }
             
             close(fdsDuplo[i][0]); // porta de leitura fechada
