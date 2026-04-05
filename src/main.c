@@ -15,5 +15,6 @@ int main(int argc, char *argv[]){
     if(config.outFiles){
         printf("A guardar ficheiro em: %s\n", config.outFiles);
     }
+    logWorker(&config);
     return 0;
 }

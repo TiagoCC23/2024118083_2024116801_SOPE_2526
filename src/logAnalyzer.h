@@ -8,6 +8,7 @@
 #include <string.h>
 #include "logAnalyzer.h"
 #include "event_classifier.h"
+#include "log_parser.h"
 
 
 
@@ -21,6 +22,6 @@ typedef struct config
 } CONFIG;
 
 void parseArguments(int argc, char *argv[], CONFIG *config);
-void logWorker(CONFIG config);
+void logWorker(CONFIG *config);
 
 #endif
