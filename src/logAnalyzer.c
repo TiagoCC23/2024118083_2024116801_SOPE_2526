@@ -78,8 +78,40 @@ void logWorker(CONFIG *config) {
             while ((bytesLidos = read(fdsDuplo[i][0], buffer, sizeof(buffer) - 1)) > 0) {
                 buffer[bytesLidos] = '\0';
                  printf("Worker %d recebeu: %s", i, buffer);
-                ApacheLogEntry log_processado;
-                if(parse_apache_log(buffer, &log_processado)==0){
+                ApacheLogEntry log_apache;
+                JSONLogEntry log_json;
+                SyslogEntry log_syslog;
+                NginxErrorEntry log_nginx;
+                switch (config->modo)
+                {    
+                case 1:
+                       if(parse_apache_log(buffer, &log_apache)==0){
+                        //TODO
+                        }  
+                break;
+
+                case 2:
+                       if(parse_json_log(buffer, &log_json)==0){
+                     //TODO
+                    }   
+                break;
+                
+                case 3:
+                       if(parse_syslog(buffer, &log_syslog)==0){
+                        //TODO
+                        }  
+                break;
+
+                case 4:
+                       if(parse_nginx_error(buffer, &log_nginx)==0){
+                     //TODO
+                    }   
+                break;                
+                
+                default:
+                    break;
+                }
+                {
 
                 }
                
