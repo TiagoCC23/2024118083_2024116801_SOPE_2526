@@ -1,6 +1,49 @@
 #include "pipe.h"
 
+ssize_t writen(int fd, const void *ptr, size_t n) {
+    size_t nleft = n;
+    ssize_t nwritten;
+    const char *bufptr = ptr;
+
+    while (nleft > 0) {
+        if ((nwritten = write(fd, bufptr, nleft)) <= 0) {
+            if (nwritten < 0 && errno == EINTR) nwritten = 0; 
+            else return -1;
+        }
+        nleft -= nwritten;
+        bufptr += nwritten;
+    }
+    return n;
+}
+
+ssize_t readn(int fd, void *ptr, size_t n) {
+    size_t nleft = n;
+    ssize_t nread;
+    char *bufptr = ptr;
+
+    while (nleft > 0) {
+        if ((nread = read(fd, bufptr, nleft)) < 0) {
+            if (errno == EINTR) nread = 0; 
+            else return -1;
+        } else if (nread == 0) {
+            break; // EOF (tubo fechado pelo outro lado)
+        }
+        nleft -= nread;
+        bufptr += nread;
+    }
+    return (n - nleft); 
+}
+
 int main(int argc, char **argv){
+    if (argc < 3) {
+        char *uso = "Uso: ./programa <ficheiro.log> <modo_verbose(0 ou 1)>\n";
+        write(STDOUT_FILENO, uso, strlen(uso));
+        exit(1);
+    }
+
+    char *file = argv[1];
+    int modo_verbose = atoi(argv[2]); // se for 1 é verbose
+
     int fds[2];
 
     if(pipe(fds) < 0){ // erro
@@ -18,7 +61,36 @@ int main(int argc, char **argv){
     if(pid == 0){ // filho
         close(fds[0]);
 
-        // falta o trabalho do filho!!!!!!!!!!
+        int log = open(file, O_RDONLY);
+        if(log < 0){
+            perror("ERRO NA ABERTURA DO LOG");
+            close(fds[1]);
+            exit(1);
+        }
+
+        PipeMessage msg;
+        memset(&msg, 0, sizeof(PipeMessage)); // limpa para não mandar lixo pro pipe
+
+        msg.pid = getpid();
+
+        char line[2048]; // buffer para guardar a linha atual
+        int pos = 0; // posicao atual na linha
+        char c; // guarda o byte lido
+
+        while(read(log, &c, 1) > 0){
+            if(c == '\n' || pos >= sizeof(linha) - 1){
+                linha[pos] = '\0';
+                msg.total_lines++;
+
+                if(strstr(line, "ERROR")){
+                    msg.errors++;
+
+                    if(modo_verbose == 1){
+
+                    }
+                }
+            }
+        }
 
         close(fds[1]);
         exit(0); // saída de sucesso
