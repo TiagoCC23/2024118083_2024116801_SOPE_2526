@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "logAnalyzer.h"
+#include "workers.h"
 
 int main(int argc, char *argv[]){
     CONFIG config;
