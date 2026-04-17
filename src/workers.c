@@ -32,15 +32,19 @@ void logWorker(CONFIG *config) {
             }
 
             // O Filho salta para a sua função de trabalho!
-            workersLogic(fdsDuplo[i][0], i, config);
+            workersLogic(fdsDuplo[i][0], i, config, numFicheiros);
   
         } 
         else {
             close(fdsDuplo[i][0]); // Pai fecha a ponta de leitura
         }
     }
-    
+    for (int i = 0; i < numFicheiros; i++) {
+    int worker = i % nWorkers;
+    write(fdsDuplo[worker][1], ficheiros[i], 512); // divide pelos workers para depois escrever em cada um
+}
     int fdLog = open(config->diretorio, O_RDONLY);
+    
     if(fdLog == -1){
         perror("Erro ao abrir a log\n");
         exit(EXIT_FAILURE);
@@ -81,8 +85,10 @@ void logWorker(CONFIG *config) {
 }
 
 
+
+
 // Função dedicada ao trabalho do Filho
-void workersLogic(int fd_leitura, int id, CONFIG *config) {
+void workersLogic(int fd_leitura, int id, CONFIG *config, int numFIles) {
     char buffer[1024];
     ssize_t bytesLidos;
     
@@ -91,26 +97,48 @@ void workersLogic(int fd_leitura, int id, CONFIG *config) {
     SyslogEntry log_syslog;
     NginxErrorEntry log_nginx;
     PipeMessage message;
+    message.total_lines=0;
+    message.errors=0;
+    message.warnings=0; // inicia a 0 para evitar lixo de memória
+    for(int i=0; i<numFIles; i++){
+    char path[512];
+    read(fd_leitura, path, 512);
+    int fdFile = open(path, O_RDONLY);
+    if(fdFile == -1){
+        perror("Erro ao abrir o ficheiro ");
+        exit(EXIT_FAILURE);
+    }
 
-    while ((bytesLidos = read(fd_leitura, buffer, sizeof(buffer) - 1)) > 0) {
+    while ((bytesLidos = read(fdFile, buffer, sizeof(buffer) - 1)) > 0) {
         buffer[bytesLidos] = '\0';
         printf("Worker %d recebeu: %s", id, buffer);
 
         switch (config->modo) {    
             case 1:
                 if(parse_apache_log(buffer, &log_apache) == 0) {
-                    //TODO
-                    
-                }  
+                    message.total_lines++;
+                    if(log_apache.status_code >= 500){
+                        message.errors++;
+                    } else if(log_apache.status_code >=400){
+                        message.warnings++;
+                    }
+                    }
                 break;
             case 2:
                 if(parse_json_log(buffer, &log_json) == 0) {
-                    //TODO
+                    message.total_lines++;
+                    if(log_json.level == LOG_ERROR ||log_json.level == LOG_CRITICAL){
+                        message.errors++;
+                    } else if (log_json.level == LOG_WARN)
+                    {
+                        message.warnings++;
+                    }
+                    
                 }   
                 break;
             case 3:
                 if(parse_syslog(buffer, &log_syslog) == 0) {
-                    //TODO
+
                 message.total_lines++;
                 if(log_syslog.is_auth_failure){
                     message.errors++;
@@ -125,7 +153,7 @@ void workersLogic(int fd_leitura, int id, CONFIG *config) {
                 break;
             case 4:
                 if(parse_nginx_error(buffer, &log_nginx) == 0) {
-                    //TODO
+
                     message.total_lines++;
                     if(log_nginx.level >= NGINX_ERROR){
                     message.errors++;
@@ -138,10 +166,23 @@ void workersLogic(int fd_leitura, int id, CONFIG *config) {
                 break;
         }
     }
-    
-    close(fd_leitura); // porta de leitura fechada
-    exit(EXIT_SUCCESS);   
+    char nameResult[64];
+    snprintf(nameResult, sizeof(nameResult), "results_%d.txt", (int) getpid()); // vai printar no ficheiro
+    int fdResult = open(nameResult, O_WRONLY | O_CREAT | O_APPEND, 0644); // escreve so no fim sem sobrescrita e o dono escreve e lê (4+2) e o grupo e os outros podem ler
+    if(fdResult == -1){
+        perror("Erro ao criar o ficheiro ");
+        exit(EXIT_FAILURE);
+    }
+    close(fdFile); // porta de leitura fechada
+    char result[256];
+    int size = snprintf(result, sizeof(result), "PID:%d;FICHEIRO:%s;LINHAS:%ld;ERRORS:%ld;WARNINGS:%ld\n",(int)getpid(),path, message.total_lines, message.errors, message.warnings);
+    write(fdResult, result,size );
+    close(fdResult);
 }
+    exit(EXIT_SUCCESS);  
+}
+
+
 int listFiles(const char *diretorio, char ficheiros[][512], int maxFicheiros){
     DIR *dir = opendir(diretorio);
     if(dir==NULL){

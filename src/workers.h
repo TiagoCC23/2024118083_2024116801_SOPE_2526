@@ -27,7 +27,7 @@ typedef struct {
 
 
 void logWorker(CONFIG *config);
-void workersLogic(int fd_leitura, int id, CONFIG *config);
+void workersLogic(int fd_leitura, int id, CONFIG *config, int numFIles);
 int listFiles(const char *diretorio, char ficheiros[][512], int maxFicheiros);
 
 #endif
