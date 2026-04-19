@@ -16,6 +16,7 @@ typedef struct config
 {
     char *diretorio;
     int numProcessos;
+    int numThreads;
     int modo;
     int verbose;
     char *outFiles;
