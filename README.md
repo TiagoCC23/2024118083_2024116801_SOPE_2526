@@ -54,6 +54,8 @@ make
 
 Conforme solicitado no enunciado do projeto, abaixo encontra-se a tabela de requisitos e o seu estado atual de desenvolvimento.
 
+---
+## Fase 1
 | ID | Descrição Resumida | Peso | Estado |
 | :--- | :--- | :---: | :---: |
 | **R3.1** | Interface de Linha de Comandos | 10% | ✅ |
@@ -61,18 +63,15 @@ Conforme solicitado no enunciado do projeto, abaixo encontra-se a tabela de requ
 | **R3.3** | Comunicação via Pipes Anónimos | 30% | 🚧 |
 | **R3.4** | Dashboard de Progresso em Tempo Real | 15% | 🚧 |
 | **R3.5** | Comunicação via Unix Domain Sockets | 30% | 🚧 |
-| **R4.1** | Apache Combined Log Format | NA | ❌ |
-| **R4.2** | JSON Structured Logs | NA | ❌ |
-| **R4.3** | Syslog Format (RFC 3164) | NA | ❌ |
-| **R4.4** | Nginx Error Log | NA | ❌ |
-| **R5.0** | Datasets Fornecidos | NA | ❌ |
-| **R6.1** | Detectar eventos de segurança | NA | ❌ |
-| **R6.2** | Analisar tempos de resposta | NA | ❌ |
-| **R6.3** | Analisar padrões de tráfego | NA | ❌ |
-| **R7.1** | Performance (Benchmarks) | NA | ❌ |
-| **R7.2** | Verificação da fiabilidade dos dados | NA | ❌ |
-| **R8.1** | Chamadas ao Sistema Obrigatórias | NA | ❌ |
-| **R8.2** | Gestão de Erros | NA | ❌ |
+
+---
+## Fase 2
+| ID | Descrição Resumida | Peso | Estado |
+| :--- | :--- | :---: | :---: |
+| **R4.1** | Modelo Worker Threads Básico | 20% | ❌ |
+| **R4.2** | Dashboard de Progresso Multi-Thread | 20% | ❌ |
+| **R4.3** | Modelo Produtor-Consumidor com Bounded Buffer | 60% | ❌ |
+
 
 > **Legenda:**
 > * ✅ : Implementado
