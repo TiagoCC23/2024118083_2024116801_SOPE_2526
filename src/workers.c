@@ -3,11 +3,12 @@
 void logWorker(CONFIG *config) {
     int nWorkers = config->numProcessos;
     __pid_t pids[nWorkers];
-    int fdsDuplo[nWorkers][2]; 
+    int fdsDuplo[nWorkers][2];  // array de pipes para cada worker
 
+    // descobre todos os ficheiros .log
     char ficheiros[100][512];
     int numFicheiros = listFiles(config->diretorio, ficheiros, 100);
-    // recrutmento de workers
+    // recrutmento de workers onde são criados n processos
     for(int i = 0; i < nWorkers; i++) {
         
         // criaçao do pipe
@@ -31,19 +32,19 @@ void logWorker(CONFIG *config) {
                 close(fdsDuplo[j][1]);
             }
 
-            // O Filho salta para a sua função de trabalho!
+            // O Filho salta para a sua função de trabalho
             workersLogic(fdsDuplo[i][0], i, config, numFicheiros);
   
         } 
         else {
-            close(fdsDuplo[i][0]); // Pai fecha a ponta de leitura
+            close(fdsDuplo[i][0]); // pai fecha a ponta de leitura
         }
     }
     for (int i = 0; i < numFicheiros; i++) {
-    int worker = i % nWorkers;
+    int worker = i % nWorkers;                     // percorre os ficheiros e garante que cada worker recebe o mesmo número de ficheiros
     write(fdsDuplo[worker][1], ficheiros[i], 512); // divide pelos workers para depois escrever em cada um
 }
-    int fdLog = open(config->diretorio, O_RDONLY);
+    int fdLog = open(config->diretorio, O_RDONLY); // desaparece no 3.3
     
     if(fdLog == -1){
         perror("Erro ao abrir a log\n");
@@ -59,11 +60,10 @@ void logWorker(CONFIG *config) {
         linhaBuffer[pos] = c;
         pos++;
         
-        if (c == '\n') {
-            write(fdsDuplo[workerAtual][1], linhaBuffer, pos);
+        if (c == '\n') { // chegou ao fim da linha
+            write(fdsDuplo[workerAtual][1], linhaBuffer, pos); // manda a linha para o pipe
             pos = 0;
-            
-            workerAtual++;
+            workerAtual++; // avança o worker e se chegou ao fim, volta ao primeiro para continuar a escrita
             if (workerAtual >= nWorkers) { 
                 workerAtual = 0;
             }
@@ -102,13 +102,14 @@ void workersLogic(int fd_leitura, int id, CONFIG *config, int numFIles) {
     message.warnings=0; // inicia a 0 para evitar lixo de memória
     for(int i=0; i<numFIles; i++){
     char path[512];
-    read(fd_leitura, path, 512);
+    read(fd_leitura, path, 512); //recebe o caminho para abrir-se os ficheiros
     int fdFile = open(path, O_RDONLY);
     if(fdFile == -1){
         perror("Erro ao abrir o ficheiro ");
         exit(EXIT_FAILURE);
     }
 
+    // le linha a linha para depois aplicar os parsers
     while ((bytesLidos = read(fdFile, buffer, sizeof(buffer) - 1)) > 0) {
         buffer[bytesLidos] = '\0';
         printf("Worker %d recebeu: %s", id, buffer);
@@ -169,7 +170,7 @@ void workersLogic(int fd_leitura, int id, CONFIG *config, int numFIles) {
     char nameResult[64];
     snprintf(nameResult, sizeof(nameResult), "results_%d.txt", (int) getpid()); // vai printar no ficheiro
     int fdResult = open(nameResult, O_WRONLY | O_CREAT | O_APPEND, 0644); // escreve so no fim sem sobrescrita e o dono escreve e lê (4+2) e o grupo e os outros podem ler
-    if(fdResult == -1){
+    if(fdResult == -1){                                                   // no ficheiro
         perror("Erro ao criar o ficheiro ");
         exit(EXIT_FAILURE);
     }
@@ -184,16 +185,16 @@ void workersLogic(int fd_leitura, int id, CONFIG *config, int numFIles) {
 
 
 int listFiles(const char *diretorio, char ficheiros[][512], int maxFicheiros){
-    DIR *dir = opendir(diretorio);
+    DIR *dir = opendir(diretorio); // abre o ficheiro
     if(dir==NULL){
         perror("Erro ao abrir o diretorio ");
         return -1;
     }
-    struct dirent *input;
-    int count=0;
-    while ((input= readdir(dir)) !=NULL)
+    struct dirent *input; // guarda o input atual
+    int count=0;          // contador de logs
+    while ((input= readdir(dir)) !=NULL)    // enquanto nao ficarmos sem inputs no ficheiro
     {
-        if(strstr(input->d_name, ".log")!=NULL){
+        if(strstr(input->d_name, ".log")!=NULL){   // verifica se o ficheiro acaba em .log para incrementar o contador
             snprintf(ficheiros[count], 512, "%s/%s", diretorio, input->d_name);
             count++;
         }

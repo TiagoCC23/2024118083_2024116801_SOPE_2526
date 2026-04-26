@@ -19,10 +19,11 @@ void* thread_worker(void* arg){
     SyslogEntry log_syslog;
     NginxErrorEntry log_nginx;
 
-
+    // recebe o ponteiro para o bloco
     long start= data->offset_start;
     long end= data->offset_end;
     char *buffer = data-> buffer_completo;
+    // processa as linhas do bloco
     for(long i=start; i<end; i++){
         char c = buffer[i];
         currentLine[pos]=c;
@@ -60,7 +61,7 @@ void* thread_worker(void* arg){
                    warningsWorker++;
                 } else if (log_syslog.is_firewall_block)
                 {
-                    warningsWorker++; // ver se faz mais sentido incrementar o erro ou aviso
+                    warningsWorker++;
                 }
             }
             break;
@@ -79,6 +80,7 @@ void* thread_worker(void* arg){
          pos=0;
     }
     }
+    // atualiza a struct partilhada onde o mutex assegura a segurança
     pthread_mutex_lock(&mutex);
     totalLinesShared += linesWorker;
     totalErrorsShared += errorsWorker;
@@ -90,13 +92,14 @@ void* thread_worker(void* arg){
 
 void logWorkerThreads(CONFIG *config) {
 
+    // le todos os ficheiros para dividir em blocos
 int fd = open(config->diretorio, O_RDONLY);
 if(fd == -1){
     perror("Erro ao abir o ficheiro ");
     exit(EXIT_FAILURE);
 }
 struct stat st;
-if(fstat(fd, &st) == -1){// permite diviir em blocos
+if(fstat(fd, &st) == -1){// permite dividir em blocos, descobrindo o tamanho total
 perror("Erro ao ler o ficheiro");
 close(fd);
 exit(EXIT_FAILURE);
@@ -106,7 +109,7 @@ if(totalSize == 0){
     perror("Ficheiro vazio  ");
     exit(EXIT_FAILURE);
 }
-char *buffer = (char*) malloc(totalSize+1);
+char *buffer = (char*) malloc(totalSize+1); // aloca o buffer para o ficheiro inteiro
 long totalReadBytes = 0;
 long readedBytes= totalSize;
 
@@ -137,6 +140,7 @@ int workers = config ->numThreads; // pegamos na quantidade de threads e atribui
 pthread_t threads[workers];
 THREADDATA tData[workers];         // cria-se um array de threads
 long currentPos= 0;
+// divide os blocos por threads
 long chunkSize = totalSize/workers; // calcula o tamanho do bloco do que o thread vai ler
 for(int i=0; i<workers; i++){
     tData[i].buffer_completo = buffer;
@@ -158,5 +162,6 @@ for(int i =0; i<workers; i++){
     pthread_join(threads[i],NULL);
 }
 free(buffer);
+// relatorio final
 printf("Linhas partilhadas: %ld\nErros partilhados: %ld\nAvisos partilhados: %ld\n", totalLinesShared, totalErrorsShared, totalWarningsShared);
 }
