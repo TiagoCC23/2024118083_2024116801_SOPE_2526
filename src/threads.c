@@ -2,7 +2,7 @@
 long totalLinesShared = 0;
 long totalErrorsShared = 0;
 long totalWarningsShared = 0;
-pthread_mutex_t mtx_stats = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
 void* thread_worker(void* arg){
@@ -79,11 +79,11 @@ void* thread_worker(void* arg){
          pos=0;
     }
     }
-    pthread_mutex_lock(&mtx_stats);
+    pthread_mutex_lock(&mutex);
     totalLinesShared += linesWorker;
     totalErrorsShared += errorsWorker;
     totalWarningsShared += warningsWorker;
-    pthread_mutex_unlock(&mtx_stats);
+    pthread_mutex_unlock(&mutex);
     return NULL;
 }
 
@@ -92,7 +92,7 @@ void logWorkerThreads(CONFIG *config) {
 
 int fd = open(config->diretorio, O_RDONLY);
 if(fd == -1){
-    perror("Erro ao abir o ficheir ");
+    perror("Erro ao abir o ficheiro ");
     exit(EXIT_FAILURE);
 }
 struct stat st;
@@ -104,7 +104,6 @@ exit(EXIT_FAILURE);
 long totalSize = st.st_size; // guarda o tamanho em bytes
 if(totalSize == 0){
     perror("Ficheiro vazio  ");
-   
     exit(EXIT_FAILURE);
 }
 char *buffer = (char*) malloc(totalSize+1);
