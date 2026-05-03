@@ -77,7 +77,7 @@ void* thread_worker(void* arg){
         default:
             break;
         }
-         pos=0;
+         pos=0; // limpa a linha
     }
     }
     // atualiza a struct partilhada onde o mutex assegura a segurança
