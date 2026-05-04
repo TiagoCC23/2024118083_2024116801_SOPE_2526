@@ -3,7 +3,7 @@
 void parseArguments(int argc, char *argv[], CONFIG *config){
     if (argc<4){
         printf("Formato inválido!!\n");
-        fprintf(stderr,"Tente algo como: ./logAnalyzer /var/log/apache2 4 security --verbose --output=report.json",argv[0]);
+        fprintf(stderr,"Tente algo como: ./logAnalyzer /var/log/apache2 4 security --verbose --output=report.json --threads==8",argv[0]);
         exit(EXIT_FAILURE);
     }
     config->diretorio = argv[1];
@@ -30,13 +30,15 @@ void parseArguments(int argc, char *argv[], CONFIG *config){
     config-> outFiles = NULL;
 
 
-    // ciclo para procurar pelo verbose ou pelo output
+    // ciclo para procurar pelo verbose, pelo output ou pelos threads
     for (int i = 4; i < argc; i++)
     {
         if(strcmp(argv[i], "--verbose") == 0){
             config->verbose=1;
         } else if(strncmp(argv[i], "--output=", 9) == 0){
             config->outFiles = argv[i]+9;
+        } else if (strncmp(argv[i], "--threads=", 10) == 0){
+            config->numThreads = atoi(argv[i]+10);
         }
     }
     

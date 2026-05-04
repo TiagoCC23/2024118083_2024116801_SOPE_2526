@@ -13,7 +13,7 @@ typedef struct {
     long offset_end;       // Onde esta thread para
     CONFIG *config;        // Configurações (modo, etc.)
 } THREADDATA;
-void* thread_worker(void* arg);
+void* threadWorker(void* arg);
 void logWorkerThreads(CONFIG *config);
 
 

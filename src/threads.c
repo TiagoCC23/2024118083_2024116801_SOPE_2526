@@ -5,7 +5,7 @@ long totalWarningsShared = 0;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
-void* thread_worker(void* arg){
+void* threadWorker(void* arg){
     THREADDATA *data = (THREADDATA*)arg;
     long linesWorker=0;
     long errorsWorker=0;
@@ -156,7 +156,7 @@ for(int i=0; i<workers; i++){
         tData[i].offset_end = end+1;
     }
     currentPos = tData[i].offset_end; // atualizmos para a proxima thread
-    pthread_create(&threads[i], NULL, thread_worker, &tData[i]); // criaçao da thread
+    pthread_create(&threads[i], NULL, threadWorker, &tData[i]); // criaçao da thread
 }
 for(int i =0; i<workers; i++){
     pthread_join(threads[i],NULL);
