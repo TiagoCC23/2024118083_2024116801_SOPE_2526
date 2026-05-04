@@ -9,9 +9,6 @@
 #include "logAnalyzer.h"
 #include "event_classifier.h"
 
-
-
-
 typedef struct config
 {
     char *diretorio;
@@ -23,6 +20,5 @@ typedef struct config
 } CONFIG;
 
 void parseArguments(int argc, char *argv[], CONFIG *config);
-
 
 #endif
