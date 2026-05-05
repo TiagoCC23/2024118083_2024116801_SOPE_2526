@@ -17,6 +17,17 @@
 #define ANSI_WHITE "\033[37m"
 #define ANSI_DIM "\033[2m"
 
+#define MAX_WORKERS 32
+
+/* compartilhado entre a thread do dashboard e o loop principal do pai */
+WorkerStatus status[MAX_WORKERS];
+int g_nworkers = 0;
+pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+/* momento de início (para elapsed/ETA) */
+time_t start_time;
+
+
+
 typedef struct {
     pid_t pid;
     long lines_processed;
