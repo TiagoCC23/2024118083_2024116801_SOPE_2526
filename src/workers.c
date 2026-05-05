@@ -1,9 +1,14 @@
 #include "workers.h"
 
+int main(){
+
+    return 0;
+}
+
 void logWorker(CONFIG *config) {
     int nWorkers = config->numProcessos;
-    __pid_t pids[nWorkers];
-    int fdsDuplo[nWorkers][2]; 
+    pid_t pids[nWorkers];
+    int fdsDuplo[nWorkers][2]; // cada filho terá seu canal de comunicação
 
     char ficheiros[100][512];
     int numFicheiros = listFiles(config->diretorio, ficheiros, 100);
