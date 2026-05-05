@@ -1,10 +1,5 @@
 #include "workers.h"
 
-int main(){
-
-    return 0;
-}
-
 void logWorker(CONFIG *config) {
     int nWorkers = config->numProcessos;
     pid_t pids[nWorkers];
