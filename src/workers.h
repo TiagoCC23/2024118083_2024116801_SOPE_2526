@@ -1,14 +1,17 @@
 #ifndef WORKERS_H
 #define WORKERS_H
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <sys/types.h>
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <string.h>
+#include <dirent.h>
+
 #include "logAnalyzer.h"
 #include "event_classifier.h"
-#include <dirent.h>
 #include "log_parser.h"
 
 typedef struct {
