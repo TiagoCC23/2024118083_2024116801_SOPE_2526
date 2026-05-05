@@ -68,8 +68,8 @@ void logWorker_pipes(CONFIG *config){
         for (int i = 0; i < nWorkers; i++) {
             if (done[i]) continue;
  
-            MsgHeader msg;
-            ssize_t n = readn(pipes[i][0], &msg, sizeof(hdr));
+            Message msg;
+            ssize_t n = readn(pipes[i][0], &msg, sizeof(msg));
  
             if (n <= 0) {
                 done[i] = 1;
@@ -79,29 +79,27 @@ void logWorker_pipes(CONFIG *config){
             }
  
             if (msg.type == MSG_TYPE_NORMAL && msg.size == sizeof(NormalMsg)) {
-                NormalMsg nmsg;
-                readn(pipes[i][0], &nmsg, sizeof(nmsg));
+                NormalMsg norm_msg;
+                readn(pipes[i][0], &norm_msg, sizeof(norm_msg));
  
-                total_lines    += nmsg.total_lines;
-                total_errors   += nmsg.errors;
-                total_warnings += nmsg.warnings;
+                total_lines += norm_msg.total_lines;
+                total_errors += norm_msg.errors;
+                total_warnings += norm_msg.warnings;
  
                 char buf[256];
-                int  len = snprintf(buf, sizeof(buf),
+                int len = snprintf(buf, sizeof(buf),
                     "[Worker %d] PID:%d | Linhas:%ld | Erros:%ld | Avisos:%ld | Top IP:%s\n",
-                    i, nmsg.pid, nmsg.total_lines,
-                    nmsg.errors, nmsg.warnings, nmsg.top_ip);
+                    i, norm_msg.pid, norm_msg.total_lines, norm_msg.errors, norm_msg.warnings, norm_msg.top_ip);
                 write(STDOUT_FILENO, buf, len);
  
             } else if (msg.type == MSG_TYPE_VERBOSE && msg.size == sizeof(VerboseMsg)) {
-                VerboseMsg vmsg;
-                readn(pipes[i][0], &vmsg, sizeof(vmsg));
+                VerboseMsg verb_msg;
+                readn(pipes[i][0], &verb_msg, sizeof(verb_msg));
  
                 char buf[512];
                 int  len = snprintf(buf, sizeof(buf),
                     "[VERBOSE] PID:%d | %s | %s | IP:%s | %s\n",
-                    vmsg.pid, vmsg.timestamp, vmsg.type,
-                    vmsg.ip, vmsg.msg);
+                    verb_msg.pid, verb_msg.timestamp, verb_msg.type, verb_msg.ip, verb_msg.msg);
                 write(STDOUT_FILENO, buf, len);
  
             } else if (msg.type == MSG_TYPE_DONE) {
@@ -131,9 +129,9 @@ void logWorker_pipes(CONFIG *config){
 // ---------------------------------------- FUNCOES ADICIONAIS ----------------------------------------
 
 ssize_t readn(int fd, void *ptr, size_t n) {
-    size_t  nleft = n;
+    size_t nleft = n;
     ssize_t nread;
-    char   *buf = ptr;
+    char *buf = ptr;
  
     while (nleft > 0) {
         nread = read(fd, buf, nleft);
@@ -146,14 +144,14 @@ ssize_t readn(int fd, void *ptr, size_t n) {
             break;
         }
         nleft -= nread;
-        buf   += nread;
+        buf += nread;
     }
     return (ssize_t)(n - nleft);
 }
  
 ssize_t writen(int fd, const void *ptr, size_t n) {
-    size_t      nleft = n;
-    ssize_t     nwritten;
+    size_t nleft = n;
+    ssize_t nwritten;
     const char *buf = ptr;
  
     while (nleft > 0) {
@@ -165,13 +163,13 @@ ssize_t writen(int fd, const void *ptr, size_t n) {
             return -1; 
         }
         nleft -= nwritten;
-        buf   += nwritten;
+        buf += nwritten;
     }
     return (ssize_t)n;
 }
 
 void send_msg(int fd_write, int type, const void *payload, int size){ // o payload não sabe o que vai receber, logo, colocamos o void *
-    Message msg;120
+    Message msg;
     msg.type = type;
     msg.size = size;
 
@@ -192,9 +190,9 @@ void filho_logic(int fd_write, int id, CONFIG *config, char ficheiros[][512], in
     NormalMsg norm_msg;
     VerboseMsg verb_msg;
 
-    memset(&nmsg, 0, sizeof(nmsg));
-    nmsg.pid = getpid();
-    strcpy(nmsg.top_ip, "N/A"); // N/A : not avaliable!
+    memset(&norm_msg, 0, sizeof(norm_msg));
+    norm_msg.pid = getpid();
+    strcpy(norm_msg.top_ip, "N/A"); // N/A : not avaliable!
 
     char ip_list[256][64];
     long ip_count[256];
@@ -203,8 +201,8 @@ void filho_logic(int fd_write, int id, CONFIG *config, char ficheiros[][512], in
     memset(ip_count, 0, sizeof(ip_count));
 
     ApacheLogEntry log_apache;
-    JSONLogEntry   log_json;
-    SyslogEntry    log_syslog;
+    JSONLogEntry log_json;
+    SyslogEntry log_syslog;
     NginxErrorEntry log_nginx;
 
     for(int i = start; i < end; i++){
@@ -221,19 +219,19 @@ void filho_logic(int fd_write, int id, CONFIG *config, char ficheiros[][512], in
         char c;
         ssize_t n; // serve como um int de ficheiros!
 
-        while ((n = read(fdFile, &c, 1)) > 0) {
-            if (pos < (int)sizeof(linebuf) - 1) {
-                linebuf[pos++] = c;
+        while ((n = read(file, &c, 1)) > 0) {
+            if (pos < (int)sizeof(buffer) - 1) {
+                buffer[pos++] = c;
             }
  
             if (c == '\n') {
-                linebuf[pos] = '\0';
+                buffer[pos] = '\0';
                 pos = 0;
-                nmsg.total_lines++;
+                norm_msg.total_lines++;
  
                 switch (config->modo) {
                     case 1:
-                        if (parse_apache_log(linebuf, &log_apache) == 0) {
+                        if (parse_apache_log(buffer, &log_apache) == 0) {
                             int found = 0;
                             for (int k = 0; k < ip_total; k++) {
                                 if (strcmp(ip_list[k], log_apache.ip) == 0) {
@@ -249,83 +247,80 @@ void filho_logic(int fd_write, int id, CONFIG *config, char ficheiros[][512], in
                             }
  
                             if (log_apache.status_code >= 500) {
-                                nmsg.errors++;
+                                norm_msg.errors++;
                                 if (config->verbose) {
-                                    memset(&vmsg, 0, sizeof(vmsg));
-                                    vmsg.pid = getpid();
-                                    strncpy(vmsg.timestamp, log_apache.timestamp, 31);
-                                    strcpy(vmsg.type, "ERROR");
-                                    snprintf(vmsg.msg, sizeof(vmsg.msg),
-                                             "HTTP %d em %s", log_apache.status_code, log_apache.url);
-                                    strncpy(vmsg.ip, log_apache.ip, 63);
-                                    send_msg(fd_write, MSG_TYPE_VERBOSE, &vmsg, sizeof(vmsg));
+                                    memset(&verb_msg, 0, sizeof(verb_msg));
+                                    verb_msg.pid = getpid();
+                                    strftime(verb_msg.timestamp, sizeof(verb_msg.timestamp), "%Y-%m-%d %H:%M:%S", &log_apache.timestamp);
+                                    strcpy(verb_msg.type, "ERROR");
+                                    snprintf(verb_msg.msg, sizeof(verb_msg.msg), "HTTP %d em %s", log_apache.status_code, log_apache.url);
+                                    strncpy(verb_msg.ip, log_apache.ip, 63);
+                                    send_msg(fd_write, MSG_TYPE_VERBOSE, &verb_msg, sizeof(verb_msg));
                                 }
                             } else if (log_apache.status_code >= 400) {
-                                nmsg.warnings++;
+                                norm_msg.warnings++;
                             }
                         }
                         break;
  
                     case 2:
-                        if (parse_json_log(linebuf, &log_json) == 0) {
-                            if (log_json.level == LOG_ERROR ||
-                                log_json.level == LOG_CRITICAL) {
-                                nmsg.errors++;
+                        if (parse_json_log(buffer, &log_json) == 0) {
+                            if (log_json.level == LOG_ERROR || log_json.level == LOG_CRITICAL) {
+                                norm_msg.errors++;
                                 if (config->verbose) {
-                                    memset(&vmsg, 0, sizeof(vmsg));
-                                    vmsg.pid = getpid();
-                                    strncpy(vmsg.timestamp, log_json.timestamp, 31);
-                                    strcpy(vmsg.type,
-                                           log_json.level == LOG_CRITICAL ? "CRITICAL" : "ERROR");
-                                    strncpy(vmsg.msg, log_json.message, 255);
-                                    strncpy(vmsg.ip,  log_json.ip, 63);
-                                    send_msg(fd_write, MSG_TYPE_VERBOSE, &vmsg, sizeof(vmsg));
+                                    memset(&verb_msg, 0, sizeof(verb_msg));
+                                    verb_msg.pid = getpid();
+                                    strftime(verb_msg.timestamp, sizeof(verb_msg.timestamp), "%Y-%m-%d %H:%M:%S", &log_json.timestamp);
+                                    strcpy(verb_msg.type, log_json.level == LOG_CRITICAL ? "CRITICAL" : "ERROR");
+                                    strncpy(verb_msg.msg, log_json.message, 255);
+                                    strncpy(verb_msg.ip,  log_json.ip, 63);
+                                    send_msg(fd_write, MSG_TYPE_VERBOSE, &verb_msg, sizeof(verb_msg));
                                 }
                             } else if (log_json.level == LOG_WARN) {
-                                nmsg.warnings++;
+                                norm_msg.warnings++;
                             }
-                            nmsg.total_lines++;
+                            norm_msg.total_lines++;
                         }
                         break;
  
                     case 3:
-                        if (parse_syslog(linebuf, &log_syslog) == 0) {
+                        if (parse_syslog(buffer, &log_syslog) == 0) {
                             if (log_syslog.is_auth_failure) {
-                                nmsg.errors++;
+                                norm_msg.errors++;
                                 if (config->verbose) {
-                                    memset(&vmsg, 0, sizeof(vmsg));
-                                    vmsg.pid = getpid();
-                                    strncpy(vmsg.timestamp, log_syslog.timestamp, 31);
-                                    strcpy(vmsg.type, "CRITICAL");
-                                    strncpy(vmsg.msg, log_syslog.message, 255);
-                                    strncpy(vmsg.ip,  log_syslog.ip, 63);
-                                    send_msg(fd_write, MSG_TYPE_VERBOSE, &vmsg, sizeof(vmsg));
+                                    memset(&verb_msg, 0, sizeof(verb_msg));
+                                    verb_msg.pid = getpid();
+                                    strftime(verb_msg.timestamp, sizeof(verb_msg.timestamp), "%Y-%m-%d %H:%M:%S", &log_syslog.timestamp);
+                                    strcpy(verb_msg.type, "CRITICAL");
+                                    strncpy(verb_msg.msg, log_syslog.message, 255);
+                                    strncpy(verb_msg.ip,  log_syslog.hostname, 63);
+                                    send_msg(fd_write, MSG_TYPE_VERBOSE, &verb_msg, sizeof(verb_msg));
                                 }
                             } else if (log_syslog.is_sudo_attempt ||
                                        log_syslog.is_firewall_block) {
-                                nmsg.warnings++;
+                                norm_msg.warnings++;
                             }
-                            nmsg.total_lines++;
+                            norm_msg.total_lines++;
                         }
                         break;
  
                     case 4:
-                        if (parse_nginx_error(linebuf, &log_nginx) == 0) {
+                        if (parse_nginx_error(buffer, &log_nginx) == 0) {
                             if (log_nginx.level >= NGINX_ERROR) {
-                                nmsg.errors++;
+                                norm_msg.errors++;
                                 if (config->verbose) {
-                                    memset(&vmsg, 0, sizeof(vmsg));
-                                    vmsg.pid = getpid();
-                                    strncpy(vmsg.timestamp, log_nginx.timestamp, 31);
-                                    strcpy(vmsg.type, "ERROR");
-                                    strncpy(vmsg.msg, log_nginx.message, 255);
-                                    strncpy(vmsg.ip,  log_nginx.client_ip, 63);
-                                    send_msg(fd_write, MSG_TYPE_VERBOSE, &vmsg, sizeof(vmsg));
+                                    memset(&verb_msg, 0, sizeof(verb_msg));
+                                    verb_msg.pid = getpid();
+                                    strftime(verb_msg.timestamp, sizeof(verb_msg.timestamp), "%Y-%m-%d %H:%M:%S", &log_nginx.timestamp);
+                                    strcpy(verb_msg.type, "ERROR");
+                                    strncpy(verb_msg.msg, log_nginx.message, 255);
+                                    strncpy(verb_msg.ip,  log_nginx.client_ip, 63);
+                                    send_msg(fd_write, MSG_TYPE_VERBOSE, &verb_msg, sizeof(verb_msg));
                                 }
                             } else if (log_nginx.level == NGINX_WARN) {
-                                nmsg.warnings++;
+                                norm_msg.warnings++;
                             }
-                            nmsg.total_lines++;
+                            norm_msg.total_lines++;
                         }
                         break;
  
@@ -335,22 +330,21 @@ void filho_logic(int fd_write, int id, CONFIG *config, char ficheiros[][512], in
             }
         }
  
-        close(fdFile);
+        close(file);
     }
  
     long max_count = 0;
     for (int k = 0; k < ip_total; k++) {
         if (ip_count[k] > max_count) { // maior IP
             max_count = ip_count[k];
-            strncpy(nmsg.top_ip, ip_list[k], 63);
+            strncpy(norm_msg.top_ip, ip_list[k], 63);
         }
     }
  
-    send_msg(fd_write, MSG_TYPE_NORMAL, &nmsg, sizeof(nmsg)); // resumo do que aconteceu
+    send_msg(fd_write, MSG_TYPE_NORMAL, &norm_msg, sizeof(norm_msg)); // resumo do que aconteceu
  
     send_msg(fd_write, MSG_TYPE_DONE, NULL, 0); // mensagem pro pai
  
     close(fd_write);
     exit(EXIT_SUCCESS);
 }
-

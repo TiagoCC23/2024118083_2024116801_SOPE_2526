@@ -1,6 +1,11 @@
+#ifndef WORKERS_PIPES_H
+#define WORKERS_PIPES_H
+
 #include "log_parser.h"
 #include "logAnalyzer.h"
 #include "workers.h"
+
+#include <errno.h>
 
 #define MSG_TYPE_NORMAL 1
 #define MSG_TYPE_VERBOSE 2
@@ -36,3 +41,5 @@ ssize_t readn(int fd, void *ptr, size_t n);
 ssize_t writen(int fd, const void *ptr, size_t n);
 void send_msg(int fd_write, int type, const void *payload, int size);
 void filho_logic(int fd_write, int id, CONFIG *config, char ficheiros[][512], int start, int end);
+
+#endif
