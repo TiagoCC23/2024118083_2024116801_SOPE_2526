@@ -59,10 +59,10 @@ void logWorker_pipes(CONFIG *config){
  
         // Código do PAI:
         close(pipes[i][1]); // O pai só lê, então fecha o lado de escrita desse filho
- 
         start = end; // O próximo filho começa de onde esse parou
     }
  
+    // código do PAI
     // Variaveis do pai para somar tudo o que os filhos mandarem
     long total_lines   = 0;
     long total_errors  = 0;
