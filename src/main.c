@@ -20,7 +20,7 @@ int main(int argc, char *argv[]){
     }
     if(config.numProcessos > 0 && config.numThreads == 0){
     logWorker(&config);
-    } else if(config.numProcessos == 0 && config.numThreads > 0){
+    } else if(config.numThreads > 0){
         logWorkerThreads(&config);
     }
     return 0;

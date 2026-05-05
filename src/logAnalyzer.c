@@ -3,7 +3,7 @@
 void parseArguments(int argc, char *argv[], CONFIG *config){
     if (argc<4){
         printf("Formato inválido!!\n");
-        fprintf(stderr,"Tente algo como: ./logAnalyzer /var/log/apache2 4 security --verbose --output=report.json --threads==8",argv[0]);
+        fprintf(stderr,"Tente algo como: ./logAnalyzer /var/log/apache2 4 security --verbose --output=report.json --threads=8");
         exit(EXIT_FAILURE);
     }
     config->diretorio = argv[1];

@@ -18,7 +18,7 @@ typedef struct {
 typedef struct {
     pid_t  pid;
     char   timestamp[32];
-    char   type[16]; // se eh: INFO, WARN, ERROR, CRITICAL
+    char   type[16]; // se eh: INFO, WARN, ERROR, CRITICALp
     char   msg[256];
     char   ip[64];
 } VerboseMsg;

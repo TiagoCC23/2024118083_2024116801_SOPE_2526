@@ -92,8 +92,17 @@ void* threadWorker(void* arg){
 
 void logWorkerThreads(CONFIG *config) {
 
-    // le todos os ficheiros para dividir em blocos
-int fd = open(config->diretorio, O_RDONLY);
+// descobre os ficheiros .log na pasta
+char ficheiros[100][512];
+int numFicheiros = listFiles(config->diretorio, ficheiros, 100);
+if(numFicheiros <= 0){
+    perror("Nenhum ficheiro encontrado");
+    exit(EXIT_FAILURE);
+}
+
+for(int f=0; f<numFicheiros; f++){
+// le todos os ficheiros para dividir em blocos
+int fd = open(ficheiros[f], O_RDONLY);
 if(fd == -1){
     perror("Erro ao abir o ficheiro ");
     exit(EXIT_FAILURE);
@@ -162,6 +171,7 @@ for(int i =0; i<workers; i++){
     pthread_join(threads[i],NULL);
 }
 free(buffer);
+}
 // relatorio final
 printf("Linhas partilhadas: %ld\nErros partilhados: %ld\nAvisos partilhados: %ld\n", totalLinesShared, totalErrorsShared, totalWarningsShared);
 }
