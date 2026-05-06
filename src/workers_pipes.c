@@ -6,31 +6,35 @@ void logWorker_pipes(CONFIG *config){
     int nWorkers = config->numProcessos;
  
     char ficheiros[100][512];
-    int  numFicheiros = listFiles(config->diretorio, ficheiros, 100);
+    int numFicheiros = listFiles(config->diretorio, ficheiros, 100);
     if (numFicheiros <= 0) {
-        write(STDOUT_FILENO, "Nenhum ficheiro .log encontrado.\n", 44);
+        write(STDOUT_FILENO, "Nenhum ficheiro .log encontrado.\n", 33);
         return;
     }
  
-    // um pipe para cada filho
+    // um pipe para cada filho (matriz onde [0] é leitura e [1] é escrita)
     int pipes[nWorkers][2];
     pid_t pids[nWorkers];
  
-    int base = numFicheiros / nWorkers;
-    int remain = numFicheiros % nWorkers;
+    // Divisão das tarefas: quantos arquivos cada processo filho vai processar
+    int arquivos_por_filho = numFicheiros / nWorkers;
+    int remain = numFicheiros % nWorkers; // arquivos que sobraram da divisão exata
  
-    int start = 0;
+    int start = 0; // marca de onde o filho atual começa a ler na lista de arquivos
  
     for (int i = 0; i < nWorkers; i++) {
  
+        // Cria o pipe ANTES do fork, senão o filho não consegue herdar a comunicação!
         if (pipe(pipes[i]) == -1) {
             perror("ERRO NO PIPE");
             exit(EXIT_FAILURE);
         }
  
-        int count = base + (i < remain ? 1 : 0);
-        int end   = start + count;
+        // Se ainda tem 'sobras', dá um arquivo a mais pra esse filho
+        int count = arquivos_por_filho + (i < remain ? 1 : 0);
+        int end = start + count;
  
+        // Cria o processo filho
         pids[i] = fork();
  
         if (pids[i] == -1) {
@@ -38,46 +42,60 @@ void logWorker_pipes(CONFIG *config){
             exit(EXIT_FAILURE);
         }
  
-        if (pids[i] == 0) { // filho
+        if (pids[i] == 0) { // Entrou no código do FILHO
  
-            close(pipes[i][0]); // fecha a leitura
+            close(pipes[i][0]); // O filho só escreve, então fecha a leitura do próprio pipe
  
-            for (int j = 0; j < i; j++) { // fechar os outros pipes
+            // fechar os outros pipes (os filhos herdam os pipes dos irmãos mais velhos que o pai já tinha aberto)
+            for (int j = 0; j < i; j++) { 
                 close(pipes[j][0]);
                 close(pipes[j][1]);
             }
  
+            // Chama a função que faz o trabalho pesado e passa o lado de ESCRITA do pipe (pipes[i][1])
             filho_logic(pipes[i][1], i, config, ficheiros, start, end);
+            // A função filho_logic já tem um exit() no final, então ele morre lá dentro.
         }
  
-        close(pipes[i][1]); // fecha o lado de leitura desse filho
- 
-        start = end;
+        // Código do PAI:
+        close(pipes[i][1]); // O pai só lê, então fecha o lado de escrita desse filho
+        start = end; // O próximo filho começa de onde esse parou
     }
  
-    // pai
+    // código do PAI
+    // Variaveis do pai para somar tudo o que os filhos mandarem
     long total_lines   = 0;
     long total_errors  = 0;
     long total_warnings = 0;
  
     int workers_active = nWorkers;
+    
+    // Vetor para marcar quais filhos já terminaram (1 = acabou, 0 = rodando)
     int done[nWorkers];
-    memset(done, 0, sizeof(done));
+    memset(done, 0, sizeof(done)); // zera o vetor
  
+    // O pai fica aqui nesse loop até todos os filhos morrerem
     while (workers_active > 0) {
         for (int i = 0; i < nWorkers; i++) {
-            if (done[i]) continue;
+            if (done[i]) continue; // Se esse filho já acabou, pula pro próximo
  
+            /* * DICA:
+             * "Mas esse readn não trava o pai se o filho demorar?"
+             * Resposta: "Sim. A leitura é síncrona. O pai espera o filho 'i' mandar algo. 
+             * Para evitar isso, teríamos que usar chamadas mais complexas, mas para já, basta."
+             */
             Message msg;
             ssize_t n = readn(pipes[i][0], &msg, sizeof(msg));
  
             if (n <= 0) {
+                // Se leu 0 ou deu erro, o pipe fechou (filho acabou ou deu pau)
                 done[i] = 1;
                 workers_active--;
                 close(pipes[i][0]);
                 continue;
             }
  
+            // Verifica o tipo da mensagem recebida pelo pipe e soma nas estatísticas gerais
             if (msg.type == MSG_TYPE_NORMAL && msg.size == sizeof(NormalMsg)) {
                 NormalMsg norm_msg;
                 readn(pipes[i][0], &norm_msg, sizeof(norm_msg));
@@ -103,6 +121,7 @@ void logWorker_pipes(CONFIG *config){
                 write(STDOUT_FILENO, buf, len);
  
             } else if (msg.type == MSG_TYPE_DONE) {
+                // Filho avisou explicitamente que terminou
                 done[i] = 1;
                 workers_active--;
                 close(pipes[i][0]);
@@ -110,10 +129,12 @@ void logWorker_pipes(CONFIG *config){
         }
     }
  
+    // Padrão: fazer o waitpid para limpar os processos zumbis que ficaram
     for (int i = 0; i < nWorkers; i++) {
         waitpid(pids[i], NULL, 0);
     }
  
+    // Print do relatório final na tela
     char report[512];
     int  rlen = snprintf(report, sizeof(report),
         "\n>>>>>> RELATÓRIO FINAL <<<<<<\n"
@@ -128,6 +149,8 @@ void logWorker_pipes(CONFIG *config){
 
 // ---------------------------------------- FUNCOES ADICIONAIS ----------------------------------------
 
+// Funções clássicas readn e writen para lidar com pipes e sockets.
+// Garantem que tudo será lido/escrito, mesmo se o SO interromper o processo no meio (EINTR).
 ssize_t readn(int fd, void *ptr, size_t n) {
     size_t nleft = n;
     ssize_t nread;
@@ -137,11 +160,11 @@ ssize_t readn(int fd, void *ptr, size_t n) {
         nread = read(fd, buf, nleft);
         if (nread < 0) {
             if (errno == EINTR) {
-                continue;
+                continue; // se foi interrupção de sinal, tenta de novo
             }
             return -1;
         } else if (nread == 0) {
-            break;
+            break; // chegou no final (EOF)
         }
         nleft -= nread;
         buf += nread;
@@ -173,11 +196,13 @@ void send_msg(int fd_write, int type, const void *payload, int size){ // o paylo
     msg.type = type;
     msg.size = size;
 
+    // Manda o cabeçalho primeiro (a struct Message)
     if(writen(fd_write, &msg, sizeof(msg)) < 0){
         perror("FILHO: erro ao enviar o header pelo pipe");
         exit(EXIT_FAILURE);
     }
 
+    // Depois manda os dados em si (o payload)
     if(size > 0){
         if(writen(fd_write, payload, size) < 0){
             perror("FILHO: erro ao enviar o payload pelo pipe");
@@ -186,6 +211,8 @@ void send_msg(int fd_write, int type, const void *payload, int size){ // o paylo
     }
 }
 
+// Função onde o filho realmente trabalha.
+// Recebe a lista de arquivos e lê os arquivos que estão entre 'start' e 'end'.
 void filho_logic(int fd_write, int id, CONFIG *config, char ficheiros[][512], int start, int end){ // o start e end servem para dividir as tarefas!
     NormalMsg norm_msg;
     VerboseMsg verb_msg;
@@ -194,6 +221,7 @@ void filho_logic(int fd_write, int id, CONFIG *config, char ficheiros[][512], in
     norm_msg.pid = getpid();
     strcpy(norm_msg.top_ip, "N/A"); // N/A : not avaliable!
 
+    // controle dos IPs para estatística
     char ip_list[256][64];
     long ip_count[256];
     int ip_total = 0;
@@ -211,24 +239,27 @@ void filho_logic(int fd_write, int id, CONFIG *config, char ficheiros[][512], in
 
         if(file < 0){
             perror("FILHO: erro ao abrir o ficheiro");
-            continue;
+            continue; // se der erro em um arquivo, pula pro próximo
         }
 
-        char buffer[2048]; // para cada linha
+        char buffer[2048]; // armazena a linha que estamos construindo
         int  pos = 0;
         char c;
-        ssize_t n; // serve como um int de ficheiros!
+        ssize_t n; 
 
+        // Lendo caractere por caractere. Não é o jeito mais rápido, mas é o mais fácil de programar e entender.
         while ((n = read(file, &c, 1)) > 0) {
+            // Vai guardando no buffer até achar o \n ou encher
             if (pos < (int)sizeof(buffer) - 1) {
                 buffer[pos++] = c;
             }
  
             if (c == '\n') {
-                buffer[pos] = '\0';
-                pos = 0;
+                buffer[pos] = '\0'; // fecha a string
+                pos = 0; // reseta para a próxima linha
                 norm_msg.total_lines++;
  
+                // Verifica qual formato estamos usando e processa a linha montada
                 switch (config->modo) {
                     case 1:
                         if (parse_apache_log(buffer, &log_apache) == 0) {
@@ -248,7 +279,7 @@ void filho_logic(int fd_write, int id, CONFIG *config, char ficheiros[][512], in
  
                             if (log_apache.status_code >= 500) {
                                 norm_msg.errors++;
-                                if (config->verbose) {
+                                if (config->verbose) { // modo tagarela ligado
                                     memset(&verb_msg, 0, sizeof(verb_msg));
                                     verb_msg.pid = getpid();
                                     strftime(verb_msg.timestamp, sizeof(verb_msg.timestamp), "%Y-%m-%d %H:%M:%S", &log_apache.timestamp);
@@ -333,6 +364,7 @@ void filho_logic(int fd_write, int id, CONFIG *config, char ficheiros[][512], in
         close(file);
     }
  
+    // Procura qual foi o IP que mais apareceu
     long max_count = 0;
     for (int k = 0; k < ip_total; k++) {
         if (ip_count[k] > max_count) { // maior IP
@@ -341,10 +373,12 @@ void filho_logic(int fd_write, int id, CONFIG *config, char ficheiros[][512], in
         }
     }
  
-    send_msg(fd_write, MSG_TYPE_NORMAL, &norm_msg, sizeof(norm_msg)); // resumo do que aconteceu
+    // Envia o resumo geral que esse filho processou
+    send_msg(fd_write, MSG_TYPE_NORMAL, &norm_msg, sizeof(norm_msg));
  
-    send_msg(fd_write, MSG_TYPE_DONE, NULL, 0); // mensagem pro pai
+    // Envia sinal que terminou para liberar o pai do "while"
+    send_msg(fd_write, MSG_TYPE_DONE, NULL, 0); 
  
     close(fd_write);
-    exit(EXIT_SUCCESS);
+    exit(EXIT_SUCCESS); // Importante: garante que o filho morre aqui e não continua rodando o código do pai
 }
