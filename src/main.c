@@ -2,6 +2,7 @@
 #include "logAnalyzer.h"
 #include "workers.h"
 #include "threads.h"
+#include "workers_pipes.h"
 
 int main(int argc, char *argv[]){
     CONFIG config;
@@ -19,7 +20,7 @@ int main(int argc, char *argv[]){
         printf("A guardar ficheiro em: %s\n", config.outFiles);
     }
     if(config.numProcessos > 0 && config.numThreads == 0){
-    logWorker(&config);
+    logWorker_pipes(&config); // ou logWorker(&config); 
     } else if(config.numThreads > 0){
         logWorkerThreads(&config);
     }
