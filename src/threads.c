@@ -30,8 +30,10 @@ void* threadWorker(void* arg){
         pos++;
         if(c == '\n'){
             currentLine[pos]='\0';
+            //printf("[Thread %d] %s", data->id, currentLine); // descomentar para o debug
             linesWorker++;
-                
+    
+
         switch (data->config->modo)
         {
         case 1:

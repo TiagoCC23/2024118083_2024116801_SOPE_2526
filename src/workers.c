@@ -123,7 +123,7 @@ while ((bytesLidos = read(fdFile, buffer, sizeof(buffer) - 1)) > 0) {
             linhaBuffer[pos++] = buffer[j];
             if (buffer[j] == '\n') {
                 linhaBuffer[pos] = '\0';
-                if(config->verbose) printf("Worker %d: %s", id, linhaBuffer);
+                if(config->verbose) printf("Worker %d: %s", id, linhaBuffer); // comentar o verbose para debug e ver as 1000 linhas
                 switch (config->modo) {    
                     case 1:
                         if(parse_apache_log(linhaBuffer, &log_apache) == 0) {
