@@ -42,7 +42,7 @@ O projeto baseia-se nas seguintes estruturas principais:
 ---
 
 ## Compilação
-make
+make logAnalyzer
 
 ## Execução
 🚧🚧🚧

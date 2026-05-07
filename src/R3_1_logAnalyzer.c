@@ -1,4 +1,4 @@
-#include "logAnalyzer.h"
+#include "R3_1_logAnalyzer.h"
 
 void parseArguments(int argc, char *argv[], CONFIG *config){
     if (argc<4){

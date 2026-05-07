@@ -1,9 +1,9 @@
-#ifndef THREADS_H
-#define THREADS_H
+#ifndef R4_1_THREADS_H
+#define R4_1_THREADS_H
 #include <pthread.h>
 #include <sys/stat.h>
 #include "log_parser.h"
-#include "logAnalyzer.h"
+#include "R3_1_logAnalyzer.h"
 #include "event_classifier.h"
 
 typedef struct {

@@ -1,8 +1,8 @@
 #include <stdio.h>
-#include "logAnalyzer.h"
-#include "workers.h"
-#include "threads.h"
-#include "workers_pipes.h"
+#include "R3_1_logAnalyzer.h"
+#include "R3_2_workers.h"
+#include "R4_1_threads.h"
+#include "R3_3_workers_pipes.h"
 
 int main(int argc, char *argv[]){
     CONFIG config;

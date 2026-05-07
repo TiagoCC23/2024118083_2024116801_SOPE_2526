@@ -161,5 +161,5 @@ help:
 	@echo "  3. make run-tests    # Testar"
 	
 # A nossa regra para compilar o projeto principal
-logAnalyzer: main.c logAnalyzer.c workers.c workers_pipes.c threads.c log_parser.c event_classifier.c
-	gcc -Wall -Wextra -O2 main.c logAnalyzer.c workers.c workers_pipes.c threads.c log_parser.c event_classifier.c -o logAnalyzer -pthread
+logAnalyzer: main.c R3_1_logAnalyzer.c R3_2_workers.c R3_3_workers_pipes.c R4_1_threads.c log_parser.c event_classifier.c
+	gcc -Wall -Wextra -O2 main.c R3_1_logAnalyzer.c R3_2_workers.c R3_3_workers_pipes.c R4_1_threads.c log_parser.c event_classifier.c -o logAnalyzer -pthread

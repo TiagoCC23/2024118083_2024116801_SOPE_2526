@@ -1,5 +1,5 @@
-#ifndef WORKERS_H
-#define WORKERS_H
+#ifndef R3_2_WORKERS_H
+#define R3_2_WORKERS_H
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,7 +10,7 @@
 #include <string.h>
 #include <dirent.h>
 
-#include "logAnalyzer.h"
+#include "R3_1_logAnalyzer.h"
 #include "event_classifier.h"
 #include "log_parser.h"
 
