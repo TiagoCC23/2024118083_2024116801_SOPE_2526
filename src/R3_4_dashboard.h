@@ -1,10 +1,10 @@
-#ifndef DASHBOARD_H
-#define DASHBOARD_H
+#ifndef R3_4_DASHBOARD_H
+#define R3_4_DASHBOARD_H
 
 #include <pthread.h>
 #include <time.h>
 
-#include "workers.h"
+#include "R3_2_workers.h"
 
 // ANSI escapes codes
 #define ANSI_CLEAR "\033[2J\033[H"

@@ -42,7 +42,7 @@ O projeto baseia-se nas seguintes estruturas principais:
 ---
 
 ## Compilação
-make
+make logAnalyzer
 
 ## Execução
 🚧🚧🚧
@@ -60,7 +60,7 @@ Conforme solicitado no enunciado do projeto, abaixo encontra-se a tabela de requ
 | :--- | :--- | :---: | :---: |
 | **R3.1** | Interface de Linha de Comandos | 10% | ✅ |
 | **R3.2** | Arquitetura Multi-Processo Básica | 15% | ✅ |
-| **R3.3** | Comunicação via Pipes Anónimos | 30% | 🚧 |
+| **R3.3** | Comunicação via Pipes Anónimos | 30% | ✅ |
 | **R3.4** | Dashboard de Progresso em Tempo Real | 15% | 🚧 |
 | **R3.5** | Comunicação via Unix Domain Sockets | 30% | 🚧 |
 
@@ -68,7 +68,7 @@ Conforme solicitado no enunciado do projeto, abaixo encontra-se a tabela de requ
 ## Fase 2
 | ID | Descrição Resumida | Peso | Estado |
 | :--- | :--- | :---: | :---: |
-| **R4.1** | Modelo Worker Threads Básico | 20% | ❌ |
+| **R4.1** | Modelo Worker Threads Básico | 20% | ✅ |
 | **R4.2** | Dashboard de Progresso Multi-Thread | 20% | ❌ |
 | **R4.3** | Modelo Produtor-Consumidor com Bounded Buffer | 60% | ❌ |
 

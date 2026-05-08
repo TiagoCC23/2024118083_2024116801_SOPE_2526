@@ -5,14 +5,17 @@
  * entre o processo pai (diretor) e os processos filhos (workers) através de 
  * pipes anónimos, conforme o Requisito C do projeto.
  */
-
-#ifndef WORKERS_PIPES_H
-#define WORKERS_PIPES_H
+#ifndef R3_3_WORKERS_PIPES_H
+#define R3_3_WORKERS_PIPES_H
 
 #include "log_parser.h"
-#include "logAnalyzer.h"
-#include "workers.h"
+#include "R3_1_logAnalyzer.h"
+#include "R3_2_workers.h"
 #include <errno.h>
+
+
+
+
 
 /** @name Tipos de Mensagem
  * Constantes que definem o tipo de payload enviado pelo pipe.
