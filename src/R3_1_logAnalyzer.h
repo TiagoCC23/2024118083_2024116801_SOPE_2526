@@ -24,6 +24,8 @@ typedef struct config
     int modo;
     int verbose;
     char *outFiles;
+    int numProdutores;
+    int numConsumidores;
 } CONFIG;
 
 /**
