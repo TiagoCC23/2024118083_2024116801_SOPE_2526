@@ -23,13 +23,25 @@ typedef struct {
 typedef struct {
     CONFIG *config;
     int id;
+    SHAREDSTATS *stats;
 } ConsumidorArgs;
-/**
- * 
- */
+
+
+typedef enum { 
+    LOG_APACHE, 
+    LOG_JSON, 
+    LOG_SYSLOG, 
+    LOG_NGINX 
+} LogType;
+
 typedef struct {
-    char linha[4096];  // a linha de log
-    int  ocupado;      // 0 = vazio, 1 = tem dados
+    LogType type;
+    int status_code;          // Útil para erros 5xx (Apache/Nginx)
+    int level;                // Para JSON e Nginx
+    int is_auth_failure;      // Para Syslog (útil para brute-force)
+    int is_sudo_attempt;      // Para Syslog
+    int is_firewall_block;    // Para Syslog
+    char ip[64];              // Essencial para rastrear os IPs do brute-force
 } LogEntry;
 
 /**
@@ -39,8 +51,7 @@ int produz(ProdutorArgs *args, char *line);
 /**
  * 
  */
-void consome(char *line, CONFIG *config);
-
+void consome(char *line, CONFIG *config, SHAREDSTATS *stats);
 /**
  * 
  */

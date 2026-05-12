@@ -7,9 +7,9 @@ sem_t podeConsumir;
 int prodptr = 0, constptr = 0;
 //provisório
 #define N 10
-SHAREDSTATS *stats = {0,0,0};
+SHAREDSTATS stats = {0, 0, 0};
 
-LogEntry buffer[N];
+char buffer[N][4096];
 
 
 int produz(ProdutorArgs *args, char *line){
@@ -31,7 +31,7 @@ int produz(ProdutorArgs *args, char *line){
   }
   return 0; // EOF
 }
-void consome(char *line, CONFIG *config){
+void consome(char *line, CONFIG *config, SHAREDSTATS *stats){
     ApacheLogEntry log_apache;
     JSONLogEntry log_json;
     SyslogEntry log_syslog;
@@ -91,6 +91,10 @@ void consome(char *line, CONFIG *config){
 void *produtor(void *arg){
     ProdutorArgs *args = (ProdutorArgs*)arg;
     
+    if (args->ficheiro[0] == '\0') {
+        return NULL; 
+    }
+
     // abre o ficheiro antes do loop
     args->fd = open(args->ficheiro, O_RDONLY);
     if(args->fd == -1){
@@ -106,8 +110,8 @@ void *produtor(void *arg){
         }
         sem_wait(&podeProduzir);
         pthread_mutex_lock(&mutex_prod);
-        strcpy(buffer->linha[prodptr], line); // guarda a linha no buffer
-        prodptr = (prodptr + 1) % N;
+        strcpy(buffer[prodptr], line); // guarda a linha no buffer
+        prodptr = (prodptr + 1) % N; // buffer circular
         pthread_mutex_unlock(&mutex_prod);
         sem_post(&podeConsumir);
     }
@@ -123,55 +127,60 @@ void *consumidor(void *arg){
     while (TRUE) {
         sem_wait(&podeConsumir);
         pthread_mutex_lock(&mutex_cons);
-        strcpy(linha, buffer->linha[constptr]); // copia a linha do buffer
-        buffer->linha[constptr][0] = '\0';      // limpa a posição
-        constptr = (constptr + 1) % N;
+        strcpy(linha, buffer[constptr]); // copia a linha do buffer
+        buffer[constptr][0] = '\0';      // limpa a posição
+        constptr = (constptr + 1) % N; // buffer circular
         pthread_mutex_unlock(&mutex_cons);
         sem_post(&podeProduzir);
         
-        consome(linha, args->config); // processa a linha
+        consome(linha, args->config, &stats); // processa a linha
     }
     return NULL;
 }
 
 
 void logWorkerProducerConsumer(CONFIG *config){
-int numProd = config->numProdutores;
-int numCons = config->numConsumidores;
-pthread_t tProd[numProd];
-pthread_t tCons[numCons];
-pthread_t printProdCons;
-sem_init(&podeProduzir, 0, N);
-sem_init(&podeConsumir, 0, 0);
-ProdutorArgs argsProd[numProd];
-ConsumidorArgs argsCons[numCons];
+    int numProd = config->numProdutores;
+    int numCons = config->numConsumidores;
+    pthread_t tProd[numProd];
+    pthread_t tCons[numCons];
+    pthread_t printProdCons;
+    sem_init(&podeProduzir, 0, N);
+    sem_init(&podeConsumir, 0, 0);
+    ProdutorArgs argsProd[numProd];
+    ConsumidorArgs argsCons[numCons];
 
-char ficheiros[100][512];
-int numFicheiros = listFiles(config->diretorio, ficheiros, 100);
+    char ficheiros[100][512];
+    int numFicheiros = listFiles(config->diretorio, ficheiros, 100);
 
-for(long i=0; i<numProd; i++){
-    argsProd[i].config = config;
-    strcpy(argsProd[i].ficheiro, ficheiros[i]);
-    argsProd[i].id = i;
-    pthread_create(&tProd[i], NULL, produtor, &argsProd[i]);
-}
-for(long i=0; i<numCons; i++){
-    argsCons[i].config = config;
-    argsCons[i].id = i;
-    pthread_create(&tCons[i], NULL, consumidor, &argsCons[i]);
-}
-//pthread_create(&printProdCons, NULL, fotoProdCons,NULL); Chamo a função dashboard feita pela RaySantos
-//pthread_join(printProdCons, NULL);
-for(long i=0; i<numProd; i++){
-    pthread_join(tProd[i],NULL);
-}
-for(long i=0; i<numCons; i++){
-    pthread_join(tCons[i],NULL);
-}
-sem_destroy(&podeProduzir);
-sem_destroy(&podeConsumir);
+        for(long i=0; i<numProd; i++){
+        argsCons[i].config = config;
+        argsCons[i].id = i;
+        argsCons[i].stats = &stats;
+        if(i<numFicheiros){
+        strcpy(argsProd[i].ficheiro, ficheiros[i]);
+        } else{
+            argsProd[i].ficheiro[0] = '\0';
+        }
+        pthread_create(&tProd[i], NULL, produtor, &argsProd[i]);
+        }
+        for(long i=0; i<numCons; i++){
+        argsCons[i].config = config;
+        argsCons[i].id = i;
+        pthread_create(&tCons[i], NULL, consumidor, &argsCons[i]);
+        }
+    //pthread_create(&printProdCons, NULL, fotoProdCons,NULL); Chamo a função dashboard feita pela RaySantos
+    //pthread_join(printProdCons, NULL);
+        for(long i=0; i<numProd; i++){
+        pthread_join(tProd[i],NULL);
+        }
+        for(long i=0; i<numCons; i++){
+        pthread_join(tCons[i],NULL);
+        }
+    sem_destroy(&podeProduzir);
+    sem_destroy(&podeConsumir);
 
-printf("Total de linhas: %ld\nErros: %ld\nAvisos: %ld\n",stats->total_lines, stats->errors, stats->warnings);
+    printf("Total de linhas: %ld\nErros: %ld\nAvisos: %ld\n",stats.total_lines, stats.errors, stats.warnings);
 
 
 }
