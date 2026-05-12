@@ -1,7 +1,5 @@
 #include "R4_1_threads.h"
-long totalLinesShared = 0;
-long totalErrorsShared = 0;
-long totalWarningsShared = 0;
+SHAREDSTATS *stats = {0,0,0};
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
@@ -84,9 +82,9 @@ void* threadWorker(void* arg){
     }
     // atualiza a struct partilhada onde o mutex assegura a segurança
     pthread_mutex_lock(&mutex);
-    totalLinesShared += linesWorker;
-    totalErrorsShared += errorsWorker;
-    totalWarningsShared += warningsWorker;
+    stats->total_lines += linesWorker;
+    stats->errors += errorsWorker;
+    stats->warnings += warningsWorker;
     pthread_mutex_unlock(&mutex);
     return NULL;
 }
@@ -175,5 +173,5 @@ for(int i =0; i<workers; i++){
 free(buffer);
 }
 // relatorio final
-printf("Linhas partilhadas: %ld\nErros partilhados: %ld\nAvisos partilhados: %ld\n", totalLinesShared, totalErrorsShared, totalWarningsShared);
+printf("Linhas partilhadas: %ld\nErros partilhados: %ld\nAvisos partilhados: %ld\n", stats->total_lines, stats->errors, stats->warnings);
 }

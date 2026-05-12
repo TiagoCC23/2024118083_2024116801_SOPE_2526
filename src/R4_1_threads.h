@@ -23,6 +23,14 @@ typedef struct {
 } THREADDATA;
 
 /**
+ * 
+ */
+typedef struct {
+    long total_lines;
+    long errors;
+    long warnings;
+} SHAREDSTATS;
+/**
  * @brief Função executada por cada thread. Processa a sua fatia de memória, linha a linha, e atualiza as estatísticas globais.
  * @param arg Ponteiro genérico que será convertido para a struct THREADDATA contendo os limites de leitura da thread.
  * @return Retorna NULL quando a thread termina a sua fatia de trabalho.

@@ -7,10 +7,7 @@ sem_t podeConsumir;
 int prodptr = 0, constptr = 0;
 //provisório
 #define N 10
-typedef struct {
-    char linha[4096];  // a linha de log
-    int  ocupado;      // 0 = vazio, 1 = tem dados
-} LogEntry;
+SHAREDSTATS *stats = {0,0,0};
 
 LogEntry buffer[N];
 
@@ -32,47 +29,107 @@ int produz(ProdutorArgs *args, char *line){
     line[pos]= '\0';
     return 1;
   }
-  return 0 // EOF
-
+  return 0; // EOF
 }
-void consome(int item){
-    sleep(1);
+void consome(char *line, CONFIG *config){
+    ApacheLogEntry log_apache;
+    JSONLogEntry log_json;
+    SyslogEntry log_syslog;
+    NginxErrorEntry log_nginx;
+    long consumeErrors = 0;
+    long consumeWarnings = 0;
+     switch (config->modo)
+        {
+        case 1:
+            if(parse_apache_log(line, &log_apache) == 0) {
+                if(log_apache.status_code >= 500){
+                        consumeErrors++;
+                    } else if(log_apache.status_code >=400){
+                        consumeWarnings++;
+                    }
+            }
+            break;
+        case 2:
+            if(parse_json_log(line, &log_json) == 0) {
+                    if(log_json.level == LOG_ERROR ||log_json.level == LOG_CRITICAL){
+                        consumeErrors++;
+                    } else if (log_json.level == LOG_WARN){
+                        consumeWarnings++;
+                    }
+            }
+            break;
+        case 3:
+            if(parse_syslog(line, &log_syslog) == 0) {
+                if(log_syslog.is_auth_failure){
+                    consumeErrors++;
+                } else if(log_syslog.is_sudo_attempt || log_syslog.is_firewall_block){
+                   consumeWarnings++;
+                } 
+            }
+            break;
+        case 4:
+           if(parse_nginx_error(line, &log_nginx) == 0) {
+            if(log_nginx.level >= NGINX_ERROR){
+                    consumeErrors++;
+                    } else if(log_nginx.level == NGINX_WARN){
+                        consumeWarnings++;
+                    }
+           }
+            break;
+        default:
+            break;
+        }
+    pthread_mutex_lock(&mutex_cons);
+    stats->total_lines++;
+    stats->errors+=consumeErrors;
+    stats->warnings+=consumeWarnings;
+    pthread_mutex_unlock(&mutex_cons);
 }
 
 
 
 void *produtor(void *arg){
+    ProdutorArgs *args = (ProdutorArgs*)arg;
+    
+    // abre o ficheiro antes do loop
+    args->fd = open(args->ficheiro, O_RDONLY);
+    if(args->fd == -1){
+        perror("Produtor: erro ao abrir ficheiro");
+        return NULL;
+    }
+
+    char line[4096];
     while (TRUE) {
-        int item = produz();
-
+        // lê uma linha do ficheiro
+        if(produz(args->fd, line) == 0){
+         break; // EOF
+        }
         sem_wait(&podeProduzir);
-
-        // Tranca APENAS a zona de produção
-        pthread_mutex_lock(&mutex_prod); 
-        buffer[prodptr] = item;
+        pthread_mutex_lock(&mutex_prod);
+        strcpy(buffer->linha[prodptr], line); // guarda a linha no buffer
         prodptr = (prodptr + 1) % N;
         pthread_mutex_unlock(&mutex_prod);
-
         sem_post(&podeConsumir);
     }
+
+    close(args->fd);
     return NULL;
 }
     
 void *consumidor(void *arg){
+    ConsumidorArgs *args = (ConsumidorArgs*)arg;
+    
+    char linha[4096];
     while (TRUE) {
-        int item;
-
         sem_wait(&podeConsumir);
-
-        pthread_mutex_lock(&mutex_cons); 
-        item = buffer[constptr]; 
-        buffer[constptr] = 0; 
-        constptr = (constptr + 1) % N; 
+        pthread_mutex_lock(&mutex_cons);
+        strcpy(linha, buffer->linha[constptr]); // copia a linha do buffer
+        buffer->linha[constptr][0] = '\0';      // limpa a posição
+        constptr = (constptr + 1) % N;
         pthread_mutex_unlock(&mutex_cons);
-
-        sem_post(&podeProduzir); 
-
-        consome(item);
+        sem_post(&podeProduzir);
+        
+        consome(linha, args->config); // processa a linha
     }
     return NULL;
 }
@@ -113,5 +170,8 @@ for(long i=0; i<numCons; i++){
 }
 sem_destroy(&podeProduzir);
 sem_destroy(&podeConsumir);
+
+printf("Total de linhas: %ld\nErros: %ld\nAvisos: %ld\n",stats->total_lines, stats->errors, stats->warnings);
+
 
 }

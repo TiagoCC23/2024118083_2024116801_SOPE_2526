@@ -39,7 +39,7 @@ int produz(ProdutorArgs *args, char *line);
 /**
  * 
  */
-void consome(int item);
+void consome(char *line, CONFIG *config);
 
 /**
  * 
