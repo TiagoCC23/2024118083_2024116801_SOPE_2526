@@ -26,7 +26,7 @@ int main(int argc, char *argv[]){
         logWorkerThreads(&config);
     }
     if(config.numProdutores > 0 && config.numConsumidores > 0){
-    logWorkerProducerConsumer(&config);
+    //logWorkerProducerConsumer(&config);
     }
     return 0;
 }
