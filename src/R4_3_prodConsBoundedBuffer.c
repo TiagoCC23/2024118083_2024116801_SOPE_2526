@@ -4,19 +4,21 @@ pthread_mutex_t mutex_prod = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_cons = PTHREAD_MUTEX_INITIALIZER;
 sem_t podeProduzir;
 sem_t podeConsumir;
-int prodptr = 0, constptr = 0;
-//provisório
-#define N 10
+
+LogEntry buffer[MAX_BUFFER];
+
 SHAREDSTATS stats = {0, 0, 0};
 
-char buffer[N][4096];
+int prodptr = 0, consptr = 0;
 
 
-int produz(ProdutorArgs *args, char *line){
+
+
+int produz(int fd, char *line){
   int pos=0;
   char character;
   ssize_t n; // para guardar valores negativos para erros
-  while((n = read(args->fd, &character, 1))>0){ //enquanto não chegamos ao fim do ficheiro
+  while((n = read(fd, &character, 1))>0){ //enquanto não chegamos ao fim do ficheiro
         if(pos < 4095){
             line[pos++]= character;
         }
@@ -88,35 +90,43 @@ void consome(char *line, CONFIG *config, SHAREDSTATS *stats){
 
 
 
-void *produtor(void *arg){
+void *produtor(void *arg) {
     ProdutorArgs *args = (ProdutorArgs*)arg;
-    
-    if (args->ficheiro[0] == '\0') {
-        return NULL; 
-    }
-
-    // abre o ficheiro antes do loop
-    args->fd = open(args->ficheiro, O_RDONLY);
-    if(args->fd == -1){
-        perror("Produtor: erro ao abrir ficheiro");
-        return NULL;
-    }
-
     char line[4096];
-    while (TRUE) {
-        // lê uma linha do ficheiro
-        if(produz(args->fd, line) == 0){
-         break; // EOF
-        }
-        sem_wait(&podeProduzir);
-        pthread_mutex_lock(&mutex_prod);
-        strcpy(buffer[prodptr], line); // guarda a linha no buffer
-        prodptr = (prodptr + 1) % N; // buffer circular
-        pthread_mutex_unlock(&mutex_prod);
-        sem_post(&podeConsumir);
-    }
+    
+    for (int i = 0; i < args->num_ficheiros_atribuidos; i++) {
+        char *nome_ficheiro = args->ficheiros_atribuidos[i];
+        LogFormat formato_atual = formatCase(nome_ficheiro); // Detetive em ação!
+        
+        args->fd = open(nome_ficheiro, O_RDONLY);
+        if (args->fd == -1) continue;
 
-    close(args->fd);
+        while (produz(args->fd, line) > 0) { // produz() lê uma linha e retorna 1 se sucesso
+            
+            LogEntry log_atual;
+            memset(&log_atual, 0, sizeof(LogEntry)); // Limpa o lixo de memória
+            log_atual.format = formato_atual;
+            
+            // O produtor faz o parse e preenche a struct
+            switch (formato_atual) {
+                case FORMAT_APACHE:
+                    parse_apache_log(line, (ApacheLogEntry*)&log_atual); // Adapta as tuas funções de parse para preencherem esta struct genérica
+                    break;
+                // ... (outros formatos)
+            }
+
+            // Insere no Buffer (Bloqueia se cheio)
+            sem_wait(&podeProduzir);
+            pthread_mutex_lock(&mutex_prod);
+            
+            buffer[prodptr] = log_atual; // Mete a struct no array
+            prodptr = (prodptr + 1) % MAX_BUFFER;
+            
+            pthread_mutex_unlock(&mutex_prod);
+            sem_post(&podeConsumir); // Avisa os consumidores que há comida
+        }
+        close(args->fd);
+    }
     return NULL;
 }
     
@@ -153,17 +163,27 @@ void logWorkerProducerConsumer(CONFIG *config){
     char ficheiros[100][512];
     int numFicheiros = listFiles(config->diretorio, ficheiros, 100);
 
-        for(long i=0; i<numProd; i++){
-        argsCons[i].config = config;
-        argsCons[i].id = i;
-        argsCons[i].stats = &stats;
-        if(i<numFicheiros){
-        strcpy(argsProd[i].ficheiro, ficheiros[i]);
-        } else{
-            argsProd[i].ficheiro[0] = '\0';
-        }
-        pthread_create(&tProd[i], NULL, produtor, &argsProd[i]);
-        }
+       // 1. Inicializar as estruturas
+for(long i = 0; i < numProd; i++){
+    argsProd[i].config = config;
+    argsProd[i].id = i;
+    argsProd[i].stats = &stats;
+    argsProd[i].num_ficheiros_atribuidos = 0; // Começam com o cesto vazio
+}
+
+// 2. Distribuir os ficheiros um a um (Round-Robin)
+for (int i = 0; i < numFicheiros; i++) {
+    int prod_id = i % numProd; // Vai rodando: 0, 1, 2, 0, 1, 2...
+    int idx_no_cesto = argsProd[prod_id].num_ficheiros_atribuidos;
+    
+    strcpy(argsProd[prod_id].ficheiros_atribuidos[idx_no_cesto], ficheiros[i]);
+    argsProd[prod_id].num_ficheiros_atribuidos++;
+}
+
+// 3. Agora sim, criar as threads!
+for(long i = 0; i < numProd; i++){
+    pthread_create(&tProd[i], NULL, produtor, &argsProd[i]);
+}
         for(long i=0; i<numCons; i++){
         argsCons[i].config = config;
         argsCons[i].id = i;

@@ -6,16 +6,17 @@
 #include "R4_1_threads.h"
 #include<semaphore.h>
 #define TRUE 1
+#define MAX_BUFFER 10
 
 
 /**
  * 
  */
 typedef struct {
-    char ficheiro[512];
     CONFIG *config;
     int id;
-    int fd;
+    char ficheiros_atribuidos[100][512]; // O "cesto" de ficheiros deste produtor
+    int num_ficheiros_atribuidos;        // Quantos ficheiros estão no cesto
 } ProdutorArgs;
 /**
  * 
@@ -23,7 +24,7 @@ typedef struct {
 typedef struct {
     CONFIG *config;
     int id;
-    SHAREDSTATS *stats;
+    SHAREDSTATS *stats; /**< Apontador para as stats */
 } ConsumidorArgs;
 
 

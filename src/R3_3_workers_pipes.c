@@ -242,6 +242,7 @@ void filho_logic(int fd_write, int id, CONFIG *config, char ficheiros[][512], in
             continue; // se der erro em um arquivo, pula pro próximo
         }
 
+        LogFormat actualFormat = formatCase(ficheiros[i]);
         char buffer[2048]; // armazena a linha que estamos construindo
         int  pos = 0;
         char c;
@@ -260,8 +261,8 @@ void filho_logic(int fd_write, int id, CONFIG *config, char ficheiros[][512], in
                 norm_msg.total_lines++;
  
                 // Verifica qual formato estamos usando e processa a linha montada
-                switch (config->modo) {
-                    case 1:
+                switch (actualFormat) {
+                    case FORMAT_APACHE:
                         if (parse_apache_log(buffer, &log_apache) == 0) {
                             int found = 0;
                             for (int k = 0; k < ip_total; k++) {
@@ -294,7 +295,7 @@ void filho_logic(int fd_write, int id, CONFIG *config, char ficheiros[][512], in
                         }
                         break;
  
-                    case 2:
+                    case FORMAT_JSON:
                         if (parse_json_log(buffer, &log_json) == 0) {
                             if (log_json.level == LOG_ERROR || log_json.level == LOG_CRITICAL) {
                                 norm_msg.errors++;
@@ -314,7 +315,7 @@ void filho_logic(int fd_write, int id, CONFIG *config, char ficheiros[][512], in
                         }
                         break;
  
-                    case 3:
+                    case FORMAT_SYSLOG:
                         if (parse_syslog(buffer, &log_syslog) == 0) {
                             if (log_syslog.is_auth_failure) {
                                 norm_msg.errors++;
@@ -335,7 +336,7 @@ void filho_logic(int fd_write, int id, CONFIG *config, char ficheiros[][512], in
                         }
                         break;
  
-                    case 4:
+                    case FORMAT_NGINX:
                         if (parse_nginx_error(buffer, &log_nginx) == 0) {
                             if (log_nginx.level >= NGINX_ERROR) {
                                 norm_msg.errors++;

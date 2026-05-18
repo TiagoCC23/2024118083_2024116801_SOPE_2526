@@ -50,4 +50,19 @@ void parseArguments(int argc, char *argv[], CONFIG *config){
     }
     
 }
+LogFormat formatCase(const char *filePatch) {
+    if (strstr(filePatch, "apache") != NULL || strstr(filePatch, "access") != NULL) {
+        return FORMAT_APACHE;
+    }
+    if (strstr(filePatch, "json") != NULL || strstr(filePatch, ".json") != NULL) {
+        return FORMAT_JSON;
+    }
+    if (strstr(filePatch, "syslog") != NULL || strstr(filePatch, "security") != NULL) {
+        return FORMAT_SYSLOG;
+    }
+    if (strstr(filePatch, "nginx") != NULL || strstr(filePatch, "error") != NULL) {
+        return FORMAT_NGINX;
+    }
+    return FORMAT_UNKNOWN;
+}
 
