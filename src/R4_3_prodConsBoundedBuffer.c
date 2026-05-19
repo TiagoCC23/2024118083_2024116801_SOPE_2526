@@ -2,12 +2,15 @@
 
 pthread_mutex_t mutex_prod = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_cons = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex_attacks = PTHREAD_MUTEX_INITIALIZER;
 sem_t podeProduzir;
 sem_t podeConsumir;
 
 LogEntry buffer[MAX_BUFFER];
 
-SHAREDSTATS stats = {0, 0, 0};
+SHAREDSTATS globalStats = {0, 0, 0};
+int erros_5xx_consecutivos = 0;
+int falhas_auth_consecutivas = 0; // Variáveis para os ataques e tentativas brute force
 
 int prodptr = 0, consptr = 0;
 
@@ -33,58 +36,47 @@ int produz(int fd, char *line){
   }
   return 0; // EOF
 }
-void consome(char *line, CONFIG *config, SHAREDSTATS *stats){
-    ApacheLogEntry log_apache;
-    JSONLogEntry log_json;
-    SyslogEntry log_syslog;
-    NginxErrorEntry log_nginx;
+void consome(LogEntry log_recebido, CONFIG *config, SHAREDSTATS *stats) {
     long consumeErrors = 0;
     long consumeWarnings = 0;
-     switch (config->modo)
-        {
-        case 1:
-            if(parse_apache_log(line, &log_apache) == 0) {
-                if(log_apache.status_code >= 500){
-                        consumeErrors++;
-                    } else if(log_apache.status_code >=400){
-                        consumeWarnings++;
-                    }
+
+    pthread_mutex_lock(&mutex_attacks); // Protege a lógica dos ataques
+    
+    switch (config->modo) {
+        case MODE_SECURITY: // Exemplo: Brute force
+            if (log_recebido.type == FORMAT_SYSLOG && log_recebido.is_auth_failure) {
+                consumeErrors++;
+                falhas_auth_consecutivas++;
+                if (falhas_auth_consecutivas >= 5) { 
+                    printf("[ALERTA] Brute-Force detetado!\n");
+                    falhas_auth_consecutivas = 0;
+                }
+            } else {
+                falhas_auth_consecutivas = 0;
             }
             break;
-        case 2:
-            if(parse_json_log(line, &log_json) == 0) {
-                    if(log_json.level == LOG_ERROR ||log_json.level == LOG_CRITICAL){
-                        consumeErrors++;
-                    } else if (log_json.level == LOG_WARN){
-                        consumeWarnings++;
-                    }
+            
+        case MODE_PERFORMANCE: // Exemplo: 5xx consecutivos
+            if (log_recebido.status_code >= 500) {
+                consumeErrors++;
+                erros_5xx_consecutivos++;
+                if (erros_5xx_consecutivos >= 10) {
+                    printf("[ALERTA] 10 Erros 5xx consecutivos!\n");
+                    erros_5xx_consecutivos = 0;
+                }
+            } else if (log_recebido.status_code > 0 && log_recebido.status_code < 500) {
+                erros_5xx_consecutivos = 0;
             }
             break;
-        case 3:
-            if(parse_syslog(line, &log_syslog) == 0) {
-                if(log_syslog.is_auth_failure){
-                    consumeErrors++;
-                } else if(log_syslog.is_sudo_attempt || log_syslog.is_firewall_block){
-                   consumeWarnings++;
-                } 
-            }
-            break;
-        case 4:
-           if(parse_nginx_error(line, &log_nginx) == 0) {
-            if(log_nginx.level >= NGINX_ERROR){
-                    consumeErrors++;
-                    } else if(log_nginx.level == NGINX_WARN){
-                        consumeWarnings++;
-                    }
-           }
-            break;
-        default:
-            break;
-        }
+            
+    
+    }
+    pthread_mutex_unlock(&mutex_attacks);
+
     pthread_mutex_lock(&mutex_cons);
     stats->total_lines++;
-    stats->errors+=consumeErrors;
-    stats->warnings+=consumeWarnings;
+    stats->errors += consumeErrors;
+    stats->warnings += consumeWarnings;
     pthread_mutex_unlock(&mutex_cons);
 }
 
@@ -96,36 +88,44 @@ void *produtor(void *arg) {
     
     for (int i = 0; i < args->num_ficheiros_atribuidos; i++) {
         char *nome_ficheiro = args->ficheiros_atribuidos[i];
-        LogFormat formato_atual = formatCase(nome_ficheiro); // Detetive em ação!
+        LogFormat formato_atual = formatCase(nome_ficheiro);
         
-        args->fd = open(nome_ficheiro, O_RDONLY);
-        if (args->fd == -1) continue;
+        int fd = open(nome_ficheiro, O_RDONLY);
+        if (fd == -1) continue;
 
-        while (produz(args->fd, line) > 0) { // produz() lê uma linha e retorna 1 se sucesso
+        while (produz(fd, line) > 0) { 
             
             LogEntry log_atual;
-            memset(&log_atual, 0, sizeof(LogEntry)); // Limpa o lixo de memória
-            log_atual.format = formato_atual;
+            memset(&log_atual, 0, sizeof(LogEntry));
+            log_atual.type = formato_atual;
             
-            // O produtor faz o parse e preenche a struct
+            // 🚨 FALTAVA: O Produtor é que faz o Parse!
             switch (formato_atual) {
                 case FORMAT_APACHE:
-                    parse_apache_log(line, (ApacheLogEntry*)&log_atual); // Adapta as tuas funções de parse para preencherem esta struct genérica
+                    parse_apache_log(line, (ApacheLogEntry*)&log_atual); // Atenção: as tuas funções originais recebiam a struct ApacheLogEntry, JSONLogEntry, etc. Tens de confirmar se o teu cast funciona ou se precisas de alterar o teu parse para aceitar LogEntry
                     break;
-                // ... (outros formatos)
+                case FORMAT_JSON:
+                    parse_json_log(line, (JSONLogEntry*)&log_atual);
+                    break;
+                case FORMAT_NGINX:
+                    parse_nginx_error(line, (NGINX_ERROR*)&log_atual); //ver
+                    break;
+                case FORMAT_SYSLOG:
+                    parse_syslog(line, (SyslogEntry*)&log_atual);
+                    break;
+                default:
             }
 
-            // Insere no Buffer (Bloqueia se cheio)
             sem_wait(&podeProduzir);
             pthread_mutex_lock(&mutex_prod);
             
-            buffer[prodptr] = log_atual; // Mete a struct no array
+            buffer[prodptr] = log_atual; // Mete a struct inteira
             prodptr = (prodptr + 1) % MAX_BUFFER;
             
             pthread_mutex_unlock(&mutex_prod);
-            sem_post(&podeConsumir); // Avisa os consumidores que há comida
+            sem_post(&podeConsumir);
         }
-        close(args->fd);
+        close(fd);
     }
     return NULL;
 }
@@ -133,17 +133,25 @@ void *produtor(void *arg) {
 void *consumidor(void *arg){
     ConsumidorArgs *args = (ConsumidorArgs*)arg;
     
-    char linha[4096];
     while (TRUE) {
+        LogEntry log_recebido; 
+        
         sem_wait(&podeConsumir);
         pthread_mutex_lock(&mutex_cons);
-        strcpy(linha, buffer[constptr]); // copia a linha do buffer
-        buffer[constptr][0] = '\0';      // limpa a posição
-        constptr = (constptr + 1) % N; // buffer circular
+        
+        log_recebido = buffer[consptr]; 
+
+        consptr = (consptr + 1) % MAX_BUFFER; // buffer circular
+        
         pthread_mutex_unlock(&mutex_cons);
         sem_post(&podeProduzir);
         
-        consome(linha, args->config, &stats); // processa a linha
+    
+        if (log_recebido.type== FORMAT_UNKNOWN && log_recebido.status_code == -1) {
+            break; 
+        }
+
+        consome(log_recebido, args->config, args->stats); // Passamos a struct
     }
     return NULL;
 }
@@ -154,53 +162,67 @@ void logWorkerProducerConsumer(CONFIG *config){
     int numCons = config->numConsumidores;
     pthread_t tProd[numProd];
     pthread_t tCons[numCons];
-    pthread_t printProdCons;
-    sem_init(&podeProduzir, 0, N);
+    
+    sem_init(&podeProduzir, 0, MAX_BUFFER);
     sem_init(&podeConsumir, 0, 0);
+    
     ProdutorArgs argsProd[numProd];
     ConsumidorArgs argsCons[numCons];
 
     char ficheiros[100][512];
     int numFicheiros = listFiles(config->diretorio, ficheiros, 100);
 
-       // 1. Inicializar as estruturas
-for(long i = 0; i < numProd; i++){
-    argsProd[i].config = config;
-    argsProd[i].id = i;
-    argsProd[i].stats = &stats;
-    argsProd[i].num_ficheiros_atribuidos = 0; // Começam com o cesto vazio
-}
+    // atualiza os argumentos do produtor
+    for(long i = 0; i < numProd; i++){ 
+        argsProd[i].config = config;
+        argsProd[i].id = i;
+        argsProd[i].num_ficheiros_atribuidos = 0;
+    }
 
-// 2. Distribuir os ficheiros um a um (Round-Robin)
-for (int i = 0; i < numFicheiros; i++) {
-    int prod_id = i % numProd; // Vai rodando: 0, 1, 2, 0, 1, 2...
-    int idx_no_cesto = argsProd[prod_id].num_ficheiros_atribuidos;
+    for (int i = 0; i < numFicheiros; i++) {
+        int prod_id = i % numProd;
+        int idx_no_cesto = argsProd[prod_id].num_ficheiros_atribuidos;
+        strcpy(argsProd[prod_id].ficheiros_atribuidos[idx_no_cesto], ficheiros[i]);
+        argsProd[prod_id].num_ficheiros_atribuidos++;
+    }
+
+    for(long i = 0; i < numProd; i++){
+        pthread_create(&tProd[i], NULL, produtor, &argsProd[i]);
+    }
     
-    strcpy(argsProd[prod_id].ficheiros_atribuidos[idx_no_cesto], ficheiros[i]);
-    argsProd[prod_id].num_ficheiros_atribuidos++;
-}
-
-// 3. Agora sim, criar as threads!
-for(long i = 0; i < numProd; i++){
-    pthread_create(&tProd[i], NULL, produtor, &argsProd[i]);
-}
-        for(long i=0; i<numCons; i++){
+    for(long i = 0; i < numCons; i++){
         argsCons[i].config = config;
         argsCons[i].id = i;
+        argsCons[i].stats = &globalStats;
         pthread_create(&tCons[i], NULL, consumidor, &argsCons[i]);
-        }
-    //pthread_create(&printProdCons, NULL, fotoProdCons,NULL); Chamo a função dashboard feita pela RaySantos
-    //pthread_join(printProdCons, NULL);
-        for(long i=0; i<numProd; i++){
-        pthread_join(tProd[i],NULL);
-        }
-        for(long i=0; i<numCons; i++){
-        pthread_join(tCons[i],NULL);
-        }
+    }
+
+    for(long i = 0; i < numProd; i++){
+        pthread_join(tProd[i], NULL);
+    }
+    
+    // Poison pill
+    for(int i = 0; i < numCons; i++) {
+        LogEntry poison;
+        memset(&poison, 0, sizeof(LogEntry));
+        poison.type = FORMAT_UNKNOWN;
+        poison.status_code = -1;
+
+        sem_wait(&podeProduzir);
+        pthread_mutex_lock(&mutex_prod);
+        buffer[prodptr] = poison;
+        prodptr = (prodptr + 1) % MAX_BUFFER;
+        pthread_mutex_unlock(&mutex_prod);
+        sem_post(&podeConsumir);
+    }
+
+    for(long i = 0; i < numCons; i++){
+        pthread_join(tCons[i], NULL);
+    }
+    
     sem_destroy(&podeProduzir);
     sem_destroy(&podeConsumir);
 
-    printf("Total de linhas: %ld\nErros: %ld\nAvisos: %ld\n",stats.total_lines, stats.errors, stats.warnings);
-
-
+    printf("Total de linhas: %ld\nErros: %ld\nAvisos: %ld\n", globalStats.total_lines, globalStats.errors, globalStats.warnings);
+    printf("Tentativas de Brute force: %ld\nErros HTTP 5xx: %ld\n", falhas_auth_consecutivas, erros_5xx_consecutivos);
 }

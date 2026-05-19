@@ -48,11 +48,11 @@ typedef struct {
 /**
  * 
  */
-int produz(ProdutorArgs *args, char *line);
+int produz(int fd, char *line);
 /**
  * 
  */
-void consome(char *line, CONFIG *config, SHAREDSTATS *stats);
+void consome(LogEntry log_recebido, CONFIG *config, SHAREDSTATS *stats);
 /**
  * 
  */
