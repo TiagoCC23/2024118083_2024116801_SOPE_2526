@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include "log_parser.h"
 #include "R3_1_logAnalyzer.h"
+#include "R3_4_R4_2_dashboard.h"
 #include "event_classifier.h"
 
 /**

@@ -3,7 +3,8 @@
 #include "R3_2_workers.h"
 #include "R4_1_threads.h"
 #include "R3_3_workers_pipes.h"
-#include "R4_3_prodConsBoundedBuffer.h"
+//#include "R4_3_prodConsBoundedBuffer.h"
+#include "R3_4_R4_2_dashboard.h"
 
 int main(int argc, char *argv[]){
     CONFIG config;
@@ -22,6 +23,8 @@ int main(int argc, char *argv[]){
     }
     if(config.numProcessos > 0 && config.numThreads == 0){
     logWorker_pipes(&config); // ou logWorker(&config); 
+    logWorker_dashboard(&config);
+
     } else if(config.numThreads > 0){
         logWorkerThreads(&config);
     }

@@ -16,7 +16,7 @@ void* threadWorker(void* arg){
     JSONLogEntry log_json;
     SyslogEntry log_syslog;
     NginxErrorEntry log_nginx;
-
+dashboard_update_thread(data->id linesWorker, , errorsWorker, 1);
     // recebe o ponteiro para o bloco
     long start= data->offset_start;
     long end= data->offset_end;
@@ -91,6 +91,8 @@ void* threadWorker(void* arg){
 
 
 void logWorkerThreads(CONFIG *config) {
+dashboard_init(config->numThreads, NULL);
+dashboard_start();
 
 // descobre os ficheiros .log na pasta
 char ficheiros[100][512];
@@ -174,6 +176,7 @@ for(int i =0; i<workers; i++){
 }
 free(buffer);
 }
+dashboard_stop();
 // relatorio final
 printf("Linhas partilhadas: %ld\nErros partilhados: %ld\nAvisos partilhados: %ld\n", globalStats.total_lines, globalStats.errors, globalStats.warnings);
 }
