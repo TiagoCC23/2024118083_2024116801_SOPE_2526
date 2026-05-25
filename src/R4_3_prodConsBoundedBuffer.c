@@ -11,31 +11,36 @@ LogEntry buffer[MAX_BUFFER];
 SHAREDSTATS globalStats = {0, 0, 0};
 int erros_5xx_consecutivos = 0;
 int falhas_auth_consecutivas = 0; // Variáveis para os ataques e tentativas brute force
-
+int trafego_consecutivo = 0;
 int prodptr = 0, consptr = 0;
 
 
-
+// Variáveis para o relatório final
+int bruteForcesDetetatos = 0;
+int erros5xxConsecutivosDetetados = 0;
+int trafefoconsecutivosdetetados = 0;
 
 int produz(int fd, char *line){
-  int pos=0;
-  char character;
-  ssize_t n; // para guardar valores negativos para erros
-  while((n = read(fd, &character, 1))>0){ //enquanto não chegamos ao fim do ficheiro
+    int pos=0;
+    char character;
+    ssize_t n; // para guardar valores negativos para erros
+    
+    while((n = read(fd, &character, 1)) > 0){ //enquanto não chegamos ao fim do ficheiro
         if(pos < 4095){
-            line[pos++]= character;
+            line[pos++] = character;
         }
         if(character == '\n'){
-            line[pos]='\0';
+            line[pos] = '\0';
             return 1; // leitura feita com sucesso
         }
-  }
-  if(pos > 0){ // ultima linha sem \n para possível conteudo acumulado no buffer
-    line[pos]= '\0';
-    return 1;
-  }
-  return 0; // EOF
+    }
+    if(pos > 0){ // ultima linha sem \n para possível conteudo acumulado no buffer
+        line[pos] = '\0';
+        return 1;
+    }
+    return 0; // EOF
 }
+
 void consome(LogEntry log_recebido, CONFIG *config, SHAREDSTATS *stats) {
     long consumeErrors = 0;
     long consumeWarnings = 0;
@@ -43,12 +48,13 @@ void consome(LogEntry log_recebido, CONFIG *config, SHAREDSTATS *stats) {
     pthread_mutex_lock(&mutex_attacks); // Protege a lógica dos ataques
     
     switch (config->modo) {
-        case MODE_SECURITY: // Exemplo: Brute force
+        case MODE_SECURITY: //Brute force
             if (log_recebido.type == FORMAT_SYSLOG && log_recebido.is_auth_failure) {
                 consumeErrors++;
                 falhas_auth_consecutivas++;
                 if (falhas_auth_consecutivas >= 5) { 
                     printf("[ALERTA] Brute-Force detetado!\n");
+                    bruteForcesDetetatos++;
                     falhas_auth_consecutivas = 0;
                 }
             } else {
@@ -62,15 +68,66 @@ void consome(LogEntry log_recebido, CONFIG *config, SHAREDSTATS *stats) {
                 erros_5xx_consecutivos++;
                 if (erros_5xx_consecutivos >= 10) {
                     printf("[ALERTA] 10 Erros 5xx consecutivos!\n");
+                    erros5xxConsecutivosDetetados++;
                     erros_5xx_consecutivos = 0;
                 }
             } else if (log_recebido.status_code > 0 && log_recebido.status_code < 500) {
                 erros_5xx_consecutivos = 0;
             }
             break;
+        
+        case MODE_TRAFFIC:
+            if(log_recebido.type == FORMAT_APACHE && log_recebido.status_code == 200){ 
+                trafego_consecutivo++;
+                if(trafego_consecutivo >= 50){ 
+                    printf("[ALERTA TRAFFIC] Pico súbito de tráfego detetado (50+ acessos seguidos)!\n");
+                    trafego_consecutivo = 0;
+                    trafefoconsecutivosdetetados++;
+               }
+            } else {
+                trafego_consecutivo = 0; // Quebrou o padrão de acessos limpos
+            }
+            break;
             
-    
+        case MODE_FULL:
+            // Testa Brute Force
+            if (log_recebido.type == FORMAT_SYSLOG && log_recebido.is_auth_failure) {
+                consumeErrors++;
+                falhas_auth_consecutivas++;
+                if (falhas_auth_consecutivas >= 5) { 
+                    printf("[ALERTA FULL] Brute-Force detetado!\n");
+                    bruteForcesDetetatos++;
+                    falhas_auth_consecutivas = 0;
+                }
+            } else { falhas_auth_consecutivas = 0; }
+
+            // Testa Performance (5xx)
+            if (log_recebido.status_code >= 500) {
+                consumeErrors++;
+                erros_5xx_consecutivos++;
+                if (erros_5xx_consecutivos >= 10) {
+                    printf("[ALERTA FULL] 10 Erros 5xx consecutivos!\n");
+                    erros5xxConsecutivosDetetados++;
+                    erros_5xx_consecutivos = 0;
+                }
+            } else if (log_recebido.status_code > 0 && log_recebido.status_code < 500) { 
+                erros_5xx_consecutivos = 0; 
+            }
+
+            // Testa Traffic
+            if (log_recebido.type == FORMAT_APACHE && log_recebido.status_code == 200) {
+                trafego_consecutivo++;
+                if (trafego_consecutivo >= 50) {
+                    printf("[ALERTA FULL] Pico súbito de tráfego detetado!\n");
+                    trafego_consecutivo = 0;
+                    trafefoconsecutivosdetetados++;
+                }
+            } else { 
+                trafego_consecutivo = 0; 
+            }
+            break;
     }
+    
     pthread_mutex_unlock(&mutex_attacks);
 
     pthread_mutex_lock(&mutex_cons);
@@ -80,11 +137,10 @@ void consome(LogEntry log_recebido, CONFIG *config, SHAREDSTATS *stats) {
     pthread_mutex_unlock(&mutex_cons);
 }
 
-
-
 void *produtor(void *arg) {
     ProdutorArgs *args = (ProdutorArgs*)arg;
     char line[4096];
+    int linhasLidas = 0;
     
     for (int i = 0; i < args->num_ficheiros_atribuidos; i++) {
         char *nome_ficheiro = args->ficheiros_atribuidos[i];
@@ -94,32 +150,58 @@ void *produtor(void *arg) {
         if (fd == -1) continue;
 
         while (produz(fd, line) > 0) { 
+            linhasLidas++;
+            if (linhasLidas % 50 == 0) {
+                dashboard_update_thread(args->id, linhasLidas, 0, 0, WORKING); 
+            }
+            LogEntry logAtual;
+            memset(&logAtual, 0, sizeof(LogEntry));
+            logAtual.type = formato_atual;
             
-            LogEntry log_atual;
-            memset(&log_atual, 0, sizeof(LogEntry));
-            log_atual.type = formato_atual;
             
-            // 🚨 FALTAVA: O Produtor é que faz o Parse!
             switch (formato_atual) {
-                case FORMAT_APACHE:
-                    parse_apache_log(line, (ApacheLogEntry*)&log_atual); // Atenção: as tuas funções originais recebiam a struct ApacheLogEntry, JSONLogEntry, etc. Tens de confirmar se o teu cast funciona ou se precisas de alterar o teu parse para aceitar LogEntry
+                case FORMAT_APACHE:{
+                    ApacheLogEntry logTemp;
+                    if(parse_apache_log(line, &logTemp) == 0){
+                        logAtual.status_code = logTemp.status_code;
+                        strcpy(logAtual.ip, logTemp.ip);
+                    } 
                     break;
-                case FORMAT_JSON:
-                    parse_json_log(line, (JSONLogEntry*)&log_atual);
+                }
+                case FORMAT_JSON:{
+                    JSONLogEntry logTemp;
+                    if(parse_json_log(line, &logTemp) == 0){
+                        logAtual.level = logTemp.level;
+                        strcpy(logAtual.ip, logTemp.ip);
+                    }
                     break;
-                case FORMAT_NGINX:
-                    parse_nginx_error(line, (NGINX_ERROR*)&log_atual); //ver
+                }
+                case FORMAT_NGINX:{
+                    NginxErrorEntry logTemp;
+                    if(parse_nginx_error(line, &logTemp) == 0){
+                        logAtual.level = logTemp.level;
+                        strcpy(logAtual.ip, logTemp.client_ip);
+                    }
                     break;
-                case FORMAT_SYSLOG:
-                    parse_syslog(line, (SyslogEntry*)&log_atual);
+                }
+                case FORMAT_SYSLOG:{
+                    SyslogEntry logTemp;
+                    if(parse_syslog(line, &logTemp) == 0){
+                        logAtual.is_auth_failure = logTemp.is_auth_failure;
+                        logAtual.is_sudo_attempt = logTemp.is_sudo_attempt;
+                        logAtual.is_firewall_block = logTemp.is_firewall_block;
+                        strcpy(logAtual.ip, logTemp.hostname);
+                    }
                     break;
+                }
                 default:
+                    break;
             }
 
             sem_wait(&podeProduzir);
             pthread_mutex_lock(&mutex_prod);
             
-            buffer[prodptr] = log_atual; // Mete a struct inteira
+            buffer[prodptr] = logAtual; // Mete a struct inteira
             prodptr = (prodptr + 1) % MAX_BUFFER;
             
             pthread_mutex_unlock(&mutex_prod);
@@ -140,14 +222,12 @@ void *consumidor(void *arg){
         pthread_mutex_lock(&mutex_cons);
         
         log_recebido = buffer[consptr]; 
-
         consptr = (consptr + 1) % MAX_BUFFER; // buffer circular
         
         pthread_mutex_unlock(&mutex_cons);
         sem_post(&podeProduzir);
         
-    
-        if (log_recebido.type== FORMAT_UNKNOWN && log_recebido.status_code == -1) {
+        if (log_recebido.type == FORMAT_UNKNOWN && log_recebido.status_code == -1) {
             break; 
         }
 
@@ -155,7 +235,6 @@ void *consumidor(void *arg){
     }
     return NULL;
 }
-
 
 void logWorkerProducerConsumer(CONFIG *config){
     int numProd = config->numProdutores;
@@ -165,6 +244,8 @@ void logWorkerProducerConsumer(CONFIG *config){
     
     sem_init(&podeProduzir, 0, MAX_BUFFER);
     sem_init(&podeConsumir, 0, 0);
+    dashboard_init(numProd + numCons, NULL); 
+    dashboard_start();
     
     ProdutorArgs argsProd[numProd];
     ConsumidorArgs argsCons[numCons];
@@ -223,6 +304,7 @@ void logWorkerProducerConsumer(CONFIG *config){
     sem_destroy(&podeProduzir);
     sem_destroy(&podeConsumir);
 
+    dashboard_stop();
     printf("Total de linhas: %ld\nErros: %ld\nAvisos: %ld\n", globalStats.total_lines, globalStats.errors, globalStats.warnings);
-    printf("Tentativas de Brute force: %ld\nErros HTTP 5xx: %ld\n", falhas_auth_consecutivas, erros_5xx_consecutivos);
+    printf("Tentativas de Brute force: %d\nErros HTTP 5xx: %d\nTráfego detetado: %d\n", bruteForcesDetetatos, erros5xxConsecutivosDetetados, trafefoconsecutivosdetetados);
 }

@@ -16,7 +16,7 @@ void* threadWorker(void* arg){
     JSONLogEntry log_json;
     SyslogEntry log_syslog;
     NginxErrorEntry log_nginx;
-dashboard_update_thread(data->id linesWorker, , errorsWorker, 1);
+    //dashboard_update_thread(data->id linesWorker, , errorsWorker, 1);
     // recebe o ponteiro para o bloco
     long start= data->offset_start;
     long end= data->offset_end;
@@ -80,7 +80,6 @@ dashboard_update_thread(data->id linesWorker, , errorsWorker, 1);
          pos=0; // limpa a linha
     }
     }
-    // atualiza a struct partilhada onde o mutex assegura a segurança
     pthread_mutex_lock(&mutex);
     globalStats.total_lines += linesWorker;
     globalStats.errors += errorsWorker;
