@@ -28,6 +28,8 @@ void parseArguments(int argc, char *argv[], CONFIG *config){
     }
     config->verbose = 0;
     config-> outFiles = NULL;
+    config->numConsumidores = 0;
+    config->numProdutores = 0;
 
 
     // ciclo para procurar pelo verbose, pelo output ou pelos threads
@@ -39,8 +41,28 @@ void parseArguments(int argc, char *argv[], CONFIG *config){
             config->outFiles = argv[i]+9;
         } else if (strncmp(argv[i], "--threads=", 10) == 0){
             config->numThreads = atoi(argv[i]+10);
+        
+        } else if(strncmp(argv[i], "--produtores=", 13) == 0){
+            config->numProdutores = atoi(argv[i] + 13);
+        } else if(strncmp(argv[i], "--consumidores=", 15) == 0){
+            config->numConsumidores = atoi(argv[i] + 15);
         }
     }
     
+}
+LogFormat formatCase(const char *filePatch) {
+    if (strstr(filePatch, "apache") != NULL || strstr(filePatch, "access") != NULL) {
+        return FORMAT_APACHE;
+    }
+    if (strstr(filePatch, "json") != NULL || strstr(filePatch, ".json") != NULL) {
+        return FORMAT_JSON;
+    }
+    if (strstr(filePatch, "syslog") != NULL || strstr(filePatch, "security") != NULL) {
+        return FORMAT_SYSLOG;
+    }
+    if (strstr(filePatch, "nginx") != NULL || strstr(filePatch, "error") != NULL) {
+        return FORMAT_NGINX;
+    }
+    return FORMAT_UNKNOWN;
 }
 

@@ -116,6 +116,8 @@ void workersLogic(int fd_leitura, int id, CONFIG *config, int numFIles) {
         char path[512];
         read(fd_leitura, path, 512); // recebe o caminho para abrir os ficheiros
         printf("Worker %d vai abrir: %s\n", id, path);
+
+        LogFormat actualFormat = formatCase(path);
         
         int fdFile = open(path, O_RDONLY);
         if(fdFile == -1){
@@ -134,8 +136,8 @@ void workersLogic(int fd_leitura, int id, CONFIG *config, int numFIles) {
                     linhaBuffer[pos] = '\0';
                     if(config->verbose) printf("Worker %d: %s", id, linhaBuffer); // comentar o if para debug
                     
-                    switch (config->modo) {    
-                        case 1:
+                    switch (actualFormat) {    
+                        case FORMAT_APACHE:
                             if(parse_apache_log(linhaBuffer, &log_apache) == 0) {
                                 message.total_lines++;
                                 if(log_apache.status_code >= 500) message.errors++;
@@ -157,14 +159,14 @@ void workersLogic(int fd_leitura, int id, CONFIG *config, int numFIles) {
                                 }
                             }
                             break;
-                        case 2:
+                        case FORMAT_JSON:
                             if(parse_json_log(linhaBuffer, &log_json) == 0) {
                                 message.total_lines++;
                                 if(log_json.level == LOG_ERROR || log_json.level == LOG_CRITICAL) message.errors++;
                                 else if(log_json.level == LOG_WARN) message.warnings++;
                             }
                             break;
-                        case 3:
+                        case FORMAT_SYSLOG:
                             if(parse_syslog(linhaBuffer, &log_syslog) == 0) {
                                 message.total_lines++;
                                 if(log_syslog.is_auth_failure) message.errors++;
@@ -172,7 +174,7 @@ void workersLogic(int fd_leitura, int id, CONFIG *config, int numFIles) {
                                 else if(log_syslog.is_firewall_block) message.warnings++;
                             }
                             break;
-                        case 4:
+                        case FORMAT_NGINX:
                             if(parse_nginx_error(linhaBuffer, &log_nginx) == 0) {
                                 message.total_lines++;
                                 if(log_nginx.level >= NGINX_ERROR) message.errors++;

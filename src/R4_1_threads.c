@@ -1,7 +1,5 @@
 #include "R4_1_threads.h"
-long totalLinesShared = 0;
-long totalErrorsShared = 0;
-long totalWarningsShared = 0;
+SHAREDSTATS globalStats = {0, 0, 0};
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
@@ -18,7 +16,7 @@ void* threadWorker(void* arg){
     JSONLogEntry log_json;
     SyslogEntry log_syslog;
     NginxErrorEntry log_nginx;
-
+    //dashboard_update_thread(data->id linesWorker, , errorsWorker, 1);
     // recebe o ponteiro para o bloco
     long start= data->offset_start;
     long end= data->offset_end;
@@ -34,9 +32,9 @@ void* threadWorker(void* arg){
             linesWorker++;
     
 
-        switch (data->config->modo)
+        switch (data->actualFormart)
         {
-        case 1:
+        case FORMAT_APACHE:
             if(parse_apache_log(currentLine, &log_apache) == 0) {
                 if(log_apache.status_code >= 500){
                         errorsWorker++;
@@ -45,7 +43,7 @@ void* threadWorker(void* arg){
                     }
             }
             break;
-        case 2:
+        case FORMAT_JSON:
             if(parse_json_log(currentLine, &log_json) == 0) {
                     if(log_json.level == LOG_ERROR ||log_json.level == LOG_CRITICAL){
                         errorsWorker++;
@@ -55,7 +53,7 @@ void* threadWorker(void* arg){
                     }
             }
             break;
-        case 3:
+        case FORMAT_SYSLOG:
             if(parse_syslog(currentLine, &log_syslog) == 0) {
                 if(log_syslog.is_auth_failure){
                     errorsWorker++;
@@ -67,7 +65,7 @@ void* threadWorker(void* arg){
                 }
             }
             break;
-        case 4:
+        case FORMAT_NGINX:
            if(parse_nginx_error(currentLine, &log_nginx) == 0) {
             if(log_nginx.level >= NGINX_ERROR){
                     errorsWorker++;
@@ -82,17 +80,18 @@ void* threadWorker(void* arg){
          pos=0; // limpa a linha
     }
     }
-    // atualiza a struct partilhada onde o mutex assegura a segurança
     pthread_mutex_lock(&mutex);
-    totalLinesShared += linesWorker;
-    totalErrorsShared += errorsWorker;
-    totalWarningsShared += warningsWorker;
+    globalStats.total_lines += linesWorker;
+    globalStats.errors += errorsWorker;
+    globalStats.warnings += warningsWorker;
     pthread_mutex_unlock(&mutex);
     return NULL;
 }
 
 
 void logWorkerThreads(CONFIG *config) {
+dashboard_init(config->numThreads, NULL);
+dashboard_start();
 
 // descobre os ficheiros .log na pasta
 char ficheiros[100][512];
@@ -103,6 +102,7 @@ if(numFicheiros <= 0){
 }
 
 for(int f=0; f<numFicheiros; f++){
+    LogFormat fileFormat = formatCase(ficheiros[f]);
 // le todos os ficheiros para dividir em blocos
 int fd = open(ficheiros[f], O_RDONLY);
 if(fd == -1){
@@ -157,6 +157,7 @@ for(int i=0; i<workers; i++){
     tData[i].buffer_completo = buffer;
     tData[i].config = config;
     tData[i].offset_start = currentPos;
+    tData[i].actualFormart = fileFormat;
     long end = currentPos + chunkSize;
     if(i == (workers-1)){
         tData[i].offset_end = totalSize; // caso seja a ultima thread, nao precisa de procurar pelo \n
@@ -174,6 +175,7 @@ for(int i =0; i<workers; i++){
 }
 free(buffer);
 }
+dashboard_stop();
 // relatorio final
-printf("Linhas partilhadas: %ld\nErros partilhados: %ld\nAvisos partilhados: %ld\n", totalLinesShared, totalErrorsShared, totalWarningsShared);
+printf("Linhas partilhadas: %ld\nErros partilhados: %ld\nAvisos partilhados: %ld\n", globalStats.total_lines, globalStats.errors, globalStats.warnings);
 }
