@@ -11,10 +11,8 @@
 #include "log_parser.h"
 #include "R3_1_logAnalyzer.h"
 #include "R3_2_workers.h"
+
 #include <errno.h>
-
-
-
 
 
 /** @name Tipos de Mensagem
