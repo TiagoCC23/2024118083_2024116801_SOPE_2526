@@ -41,19 +41,18 @@ int produz(int fd, char *line){
     return 0; // EOF
 }
 
-void consome(LogEntry log_recebido, CONFIG *config, SHAREDSTATS *stats) {
-    long consumeErrors = 0;
+long consome(LogEntry log_recebido, CONFIG *config, SHAREDSTATS *stats) {
+long consumeErrors = 0;
     long consumeWarnings = 0;
 
     pthread_mutex_lock(&mutex_attacks); // Protege a lógica dos ataques
     
     switch (config->modo) {
-        case MODE_SECURITY: //Brute force
+        case MODE_SECURITY: 
             if (log_recebido.type == FORMAT_SYSLOG && log_recebido.is_auth_failure) {
                 consumeErrors++;
                 falhas_auth_consecutivas++;
                 if (falhas_auth_consecutivas >= 5) { 
-                    printf("[ALERTA] Brute-Force detetado!\n");
                     bruteForcesDetetatos++;
                     falhas_auth_consecutivas = 0;
                 }
@@ -62,12 +61,11 @@ void consome(LogEntry log_recebido, CONFIG *config, SHAREDSTATS *stats) {
             }
             break;
             
-        case MODE_PERFORMANCE: // Exemplo: 5xx consecutivos
+        case MODE_PERFORMANCE: 
             if (log_recebido.status_code >= 500) {
                 consumeErrors++;
                 erros_5xx_consecutivos++;
                 if (erros_5xx_consecutivos >= 10) {
-                    printf("[ALERTA] 10 Erros 5xx consecutivos!\n");
                     erros5xxConsecutivosDetetados++;
                     erros_5xx_consecutivos = 0;
                 }
@@ -80,12 +78,11 @@ void consome(LogEntry log_recebido, CONFIG *config, SHAREDSTATS *stats) {
             if(log_recebido.type == FORMAT_APACHE && log_recebido.status_code == 200){ 
                 trafego_consecutivo++;
                 if(trafego_consecutivo >= 50){ 
-                    printf("[ALERTA TRAFFIC] Pico súbito de tráfego detetado (50+ acessos seguidos)!\n");
-                    trafego_consecutivo = 0;
                     trafefoconsecutivosdetetados++;
+                    trafego_consecutivo = 0;
                }
             } else {
-                trafego_consecutivo = 0; // Quebrou o padrão de acessos limpos
+                trafego_consecutivo = 0; 
             }
             break;
             
@@ -95,18 +92,16 @@ void consome(LogEntry log_recebido, CONFIG *config, SHAREDSTATS *stats) {
                 consumeErrors++;
                 falhas_auth_consecutivas++;
                 if (falhas_auth_consecutivas >= 5) { 
-                    printf("[ALERTA FULL] Brute-Force detetado!\n");
                     bruteForcesDetetatos++;
                     falhas_auth_consecutivas = 0;
                 }
             } else { falhas_auth_consecutivas = 0; }
 
-            // Testa Performance (5xx)
+            // Testa Performance 
             if (log_recebido.status_code >= 500) {
                 consumeErrors++;
                 erros_5xx_consecutivos++;
                 if (erros_5xx_consecutivos >= 10) {
-                    printf("[ALERTA FULL] 10 Erros 5xx consecutivos!\n");
                     erros5xxConsecutivosDetetados++;
                     erros_5xx_consecutivos = 0;
                 }
@@ -118,23 +113,36 @@ void consome(LogEntry log_recebido, CONFIG *config, SHAREDSTATS *stats) {
             if (log_recebido.type == FORMAT_APACHE && log_recebido.status_code == 200) {
                 trafego_consecutivo++;
                 if (trafego_consecutivo >= 50) {
-                    printf("[ALERTA FULL] Pico súbito de tráfego detetado!\n");
-                    trafego_consecutivo = 0;
                     trafefoconsecutivosdetetados++;
+                    trafego_consecutivo = 0;
                 }
             } else { 
                 trafego_consecutivo = 0; 
             }
             break;
     }
-    
     pthread_mutex_unlock(&mutex_attacks);
+
+    // Contagem de avisos (warnings) genéricos
+    if (log_recebido.status_code >= 400 && log_recebido.status_code < 500){
+        consumeWarnings++;
+    } 
+    if (log_recebido.type == FORMAT_JSON && log_recebido.level == LOG_WARN){
+        consumeWarnings++;
+    } 
+    if (log_recebido.type == FORMAT_SYSLOG && (log_recebido.is_sudo_attempt || log_recebido.is_firewall_block)){
+        consumeWarnings++;
+    }
+    if (log_recebido.type == FORMAT_NGINX && log_recebido.level == LOG_WARN){
+        consumeWarnings++;
+    } 
 
     pthread_mutex_lock(&mutex_cons);
     stats->total_lines++;
     stats->errors += consumeErrors;
     stats->warnings += consumeWarnings;
     pthread_mutex_unlock(&mutex_cons);
+    return consumeErrors;
 }
 
 void *produtor(void *arg) {
@@ -209,11 +217,14 @@ void *produtor(void *arg) {
         }
         close(fd);
     }
+    dashboard_update_thread(args->id, linhasLidas, 0, 0, DONE);
     return NULL;
 }
     
 void *consumidor(void *arg){
     ConsumidorArgs *args = (ConsumidorArgs*)arg;
+    int dashboard_id = args->config->numProdutores + args->id;
+
     
     while (TRUE) {
         LogEntry log_recebido; 
@@ -231,8 +242,12 @@ void *consumidor(void *arg){
             break; 
         }
 
-        consome(log_recebido, args->config, args->stats); // Passamos a struct
+        long erros_encontrados = consome(log_recebido, args->config, args->stats); // Passamos a struct
+        if (erros_encontrados > 0) {
+            dashboard_update_thread(dashboard_id, 0, 0, erros_encontrados, WORKING);
+        }
     }
+    dashboard_update_thread(dashboard_id, 0, 0, 0, DONE);
     return NULL;
 }
 

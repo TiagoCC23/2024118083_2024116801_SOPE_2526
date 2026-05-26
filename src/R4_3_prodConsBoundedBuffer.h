@@ -53,7 +53,7 @@ int produz(int fd, char *line);
 /**
  * 
  */
-void consome(LogEntry log_recebido, CONFIG *config, SHAREDSTATS *stats);
+long consome(LogEntry log_recebido, CONFIG *config, SHAREDSTATS *stats);
 /**
  * 
  */
