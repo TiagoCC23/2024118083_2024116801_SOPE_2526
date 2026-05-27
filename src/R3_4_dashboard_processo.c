@@ -97,7 +97,7 @@ void logWorker_dashboard(CONFIG *config) {
             for (int l = 1; l <= 10000; l++) {
                 if (l % 1000 == 0) {
                     dashboard_send_progress(prog_fd, l, 10000, (l % 3000 == 0), WORKING);
-                    usleep(50000);
+                    sleep(50000);
                 }
             }
             dashboard_send_progress(prog_fd, 10000, 10000, 3, DONE);
@@ -183,7 +183,7 @@ void logWorker_dashboard(CONFIG *config) {
                            bar, (int)(gpct * 100), events_sec, static_errors, elapsed/60, elapsed%60, eta/60, eta%60);
             write(STDOUT_FILENO, buf, len);
         }
-        usleep(10000); // Evitar consumo excessivo de CPU no polling de não-bloqueio
+        sleep(10000); // Evitar consumo excessivo de CPU no polling de não-bloqueio
     }
 
     for (int i = 0; i < nWorkers; i++) waitpid(pids[i], NULL, 0);

@@ -1,4 +1,5 @@
 #include "R4_3_prodConsBoundedBuffer.h"
+#include "R3_4_R4_2_dashboard.h"
 
 pthread_mutex_t mutex_prod = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutex_cons = PTHREAD_MUTEX_INITIALIZER;
