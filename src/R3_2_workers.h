@@ -50,11 +50,12 @@ void logWorker(CONFIG *config);
  * pelo pipe, lê linha a linha, faz o parse e extrai métricas, e escreve os resultados
  * num ficheiro results_<pid>.txt
  * @param fd_leitura Descritor do pipe de leitura (recebe caminhos do pai)
+ * @param prog_fd
  * @param id Identificador do worker (0 a N-1)
  * @param config Configurações do utilizador
  * @param numFIles Número de ficheiros que este worker vai processar
  */
-void workersLogic(int fd_leitura, int id, CONFIG *config, int numFIles);
+void workersLogic(int fd_leitura, int prog_fd, int id, CONFIG *config, int numFIles);
 /**
  * @brief Descobre todos os ficheiros .log dentro de um diretório
  * @param diretorio Caminho da pasta a pesquisar

@@ -46,10 +46,10 @@ typedef struct {
     
     // Campos comuns
     char timestamp[64];
-    char ip[64];
+    char ip[64];               // Essencial para rastrear os IPs do brute-force
     
     // Apache & Nginx
-    int status_code;           
+    int status_code;           // Útil para erros 5xx (Apache/Nginx)
     
     // JSON & Nginx
     int level;                 // Nível de erro (INFO, WARN, ERROR, etc.)
@@ -57,7 +57,7 @@ typedef struct {
     // Syslog
     int is_auth_failure;
     int is_sudo_attempt;
-    int is_firewall_block;
+    int is_firewall_block;    
     
 } LogEntry;
 

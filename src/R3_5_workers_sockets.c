@@ -1,4 +1,5 @@
 #include "R3_5_workers_sockets.h"
+#include "R3_4_R4_2_dashboard.h"
 
 void logWorker_sockets(CONFIG *config){
     int nWorkers = config->numProcessos;
@@ -41,11 +42,19 @@ void logWorker_sockets(CONFIG *config){
     int arquivos_por_filho = numFicheiros / nWorkers;
     int remain = numFicheiros % nWorkers;
     int start = 0; 
+    int prog_pipes[nWorkers][2];
+    int done_prog[nWorkers];
+    memset(done_prog, 0, sizeof(done_prog));
  
     for (int i = 0; i < nWorkers; i++) {
         int count = arquivos_por_filho + (i < remain ? 1 : 0);
         int end = start + count;
  
+        if (pipe(prog_pipes[i]) == -1) {
+        perror("pipe progresso");
+        exit(EXIT_FAILURE);
+        }
+
         pids[i] = fork();
  
         if (pids[i] == -1) {
@@ -53,6 +62,7 @@ void logWorker_sockets(CONFIG *config){
             exit(EXIT_FAILURE);
         }
  
+
         if (pids[i] == 0) { 
             // FILHO (CLIENTE)
             int client_sock = socket(AF_UNIX, SOCK_STREAM, 0);
@@ -60,6 +70,7 @@ void logWorker_sockets(CONFIG *config){
                 perror("ERRO: Filho falhou ao criar socket");
                 exit(EXIT_FAILURE);
             }
+            
 
             struct sockaddr_un addr;
             memset(&addr, 0, sizeof(struct sockaddr_un));
@@ -70,11 +81,18 @@ void logWorker_sockets(CONFIG *config){
                 perror("ERRO: Filho falhou ao conectar ao servidor");
                 exit(EXIT_FAILURE);
             }
-
-            filho_logic(client_sock, i, config, ficheiros, start, end);
+            // fecha os lados de leitura dos prog_pipes de todos os workers
+            for (int j = 0; j < nWorkers; j++){
+             close(prog_pipes[j][0]);
+            }
+            filho_logic(client_sock, prog_pipes[i][1], i, config, ficheiros, start, end);
         }
  
         start = end; 
+
+        // fecha a escrita e previne que o processo fique parado á espera de dados para ler (leitura não bloqueante)
+        close(prog_pipes[i][1]);
+        fcntl(prog_pipes[i][0], F_SETFL, O_NONBLOCK);
     }
  
     int client_fds[nWorkers];
@@ -95,20 +113,47 @@ void logWorker_sockets(CONFIG *config){
     int done[nWorkers];
     memset(done, 0, sizeof(done)); 
  
+    // dashboard
+    struct WorkerStatus ws[MAX_WORKERS];
+    time_t start_time = time(NULL);
+    time_t last_draw = 0;
+    long prev_done = 0;
+    long events_sec = 0;
+    long static_errors = 0;
+
+    for (int i = 0; i < nWorkers; i++) {
+        ws[i].pid = pids[i];
+        ws[i].lines_processed = 0;
+        ws[i].total_lines = 10000;
+        ws[i].progress_pct = 0.0f;
+        ws[i].state = WORKING;
+    }
     while (workers_active > 0) {
         for (int i = 0; i < nWorkers; i++) {
             if (done[i]) continue; 
  
+                ProgressMsg pm;
+                ssize_t np = read(prog_pipes[i][0], &pm, sizeof(pm));
+            if (np > 0) {
+                ws[i].lines_processed = pm.lines_processed;
+                ws[i].total_lines     = pm.total_lines;
+                ws[i].progress_pct    = pm.progress_pct;
+                ws[i].state           = pm.state;
+                static_errors         = pm.errors;
+            }
             Message msg;
-            // leitura do socket do cliente
-            ssize_t n = readn(client_fds[i], &msg, sizeof(msg));
+            // leitura do socket do cliente sem bloquear
+            ssize_t n = recv(client_fds[i], &msg, sizeof(msg), MSG_DONTWAIT);
  
-            if (n <= 0) {
+            if (n <= 0){
+                if((errno != EAGAIN && errno != EWOULDBLOCK)) {
                 done[i] = 1;
                 workers_active--;
                 close(client_fds[i]); // fechamos o socket
-                continue;
+             continue;
             }
+        }
+            
  
             if (msg.type == MSG_TYPE_NORMAL && msg.size == sizeof(NormalMsg)) {
                 NormalMsg norm_msg;
@@ -140,6 +185,16 @@ void logWorker_sockets(CONFIG *config){
                 close(client_fds[i]); // fechamos o socket
             }
         }
+        time_t now = time(NULL);
+        if (now - last_draw >= 1) {
+            long cur_done = 0;
+            for (int i = 0; i < nWorkers; i++) cur_done += ws[i].lines_processed;
+            events_sec = cur_done - prev_done;
+            prev_done  = cur_done;
+            last_draw  = now;
+            dashboard_render(ws, nWorkers, start_time, events_sec, static_errors);
+        } 
+usleep(10000);
     }
  
     for (int i = 0; i < nWorkers; i++) {

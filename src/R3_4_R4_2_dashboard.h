@@ -54,6 +54,7 @@ typedef struct {
 // 3.4
 void logWorker_dashboard(CONFIG *config);
 void dashboard_send_progress(int prog_fd, long lines_processed, long total_lines, long errors, int state);
+void dashboard_render(struct WorkerStatus *ws, int nWorkers, time_t start_time, long events_sec, long errors);
 
 // 4.2
 void dashboard_init(int nworkers, long total_lines_per_worker[]);
