@@ -1,4 +1,5 @@
 #include "R3_3_workers_pipes.h"
+#include "R3_4_R4_2_dashboard.h"
 
 // ---------------------------------------- FUNCAO PRINCIPAL ----------------------------------------
 
@@ -42,7 +43,7 @@ void logWorker_pipes(CONFIG *config){
             exit(EXIT_FAILURE);
         }
  
-        if (pids[i] == 0) { // Entrou no código do FILHO
+        if (pids[i] == 0) { // FILHO
  
             close(pipes[i][0]); // O filho só escreve, então fecha a leitura do próprio pipe
  
@@ -53,7 +54,7 @@ void logWorker_pipes(CONFIG *config){
             }
  
             // Chama a função que faz o trabalho pesado e passa o lado de ESCRITA do pipe (pipes[i][1])
-            filho_logic(pipes[i][1], i, config, ficheiros, start, end);
+            filho_logic(pipes[i][1], -1, i, config, ficheiros, start, end);
             // A função filho_logic já tem um exit() no final, então ele morre lá dentro.
         }
  
@@ -213,7 +214,7 @@ void send_msg(int fd_write, int type, const void *payload, int size){ // o paylo
 
 // Função onde o filho realmente trabalha.
 // Recebe a lista de arquivos e lê os arquivos que estão entre 'start' e 'end'.
-void filho_logic(int fd_write, int id, CONFIG *config, char ficheiros[][512], int start, int end){ // o start e end servem para dividir as tarefas!
+void filho_logic(int fd_write, int prog_fd, int id, CONFIG *config, char ficheiros[][512], int start, int end){ // o start e end servem para dividir as tarefas!
     NormalMsg norm_msg;
     VerboseMsg verb_msg;
 
@@ -259,6 +260,11 @@ void filho_logic(int fd_write, int id, CONFIG *config, char ficheiros[][512], in
                 buffer[pos] = '\0'; // fecha a string
                 pos = 0; // reseta para a próxima linha
                 norm_msg.total_lines++;
+
+                if (prog_fd != -1 && norm_msg.total_lines % 500 == 0) {
+                // Assume 10000 linhas como estimativa provisória
+                    dashboard_send_progress(prog_fd, norm_msg.total_lines, 10000, norm_msg.errors, 1); // 1 = WORKING
+                }
  
                 // Verifica qual formato estamos usando e processa a linha montada
                 switch (actualFormat) {
@@ -379,7 +385,9 @@ void filho_logic(int fd_write, int id, CONFIG *config, char ficheiros[][512], in
  
     // Envia sinal que terminou para liberar o pai do "while"
     send_msg(fd_write, MSG_TYPE_DONE, NULL, 0); 
- 
+
+    dashboard_send_progress(prog_fd, norm_msg.total_lines, norm_msg.total_lines, norm_msg.errors, 2);
+    close(prog_fd);
     close(fd_write);
-    exit(EXIT_SUCCESS); // Importante: garante que o filho morre aqui e não continua rodando o código do pai
+    exit(EXIT_SUCCESS); // garante que o filho morre aqui e não continua rodando o código do pai
 }

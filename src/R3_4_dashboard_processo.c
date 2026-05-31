@@ -1,4 +1,7 @@
 #include "R3_4_R4_2_dashboard.h"
+#include "R3_3_workers_pipes.h"
+
+void dashboard_render(struct WorkerStatus *local_status, int nWorkers, time_t start_time, long events_sec, long errors);
 
 extern ssize_t readn(int fd, void *ptr, size_t n);
 extern ssize_t writen(int fd, const void *ptr, size_t n);
@@ -55,6 +58,8 @@ void logWorker_dashboard(CONFIG *config) {
     pid_t pids[nWorkers];
     int done[nWorkers];
     memset(done, 0, sizeof(done)); // aloca o valor 0
+    long worker_errors[MAX_WORKERS];
+    memset(worker_errors, 0, sizeof(worker_errors));
 
     int base = numFicheiros / nWorkers;
     int remainder = numFicheiros % nWorkers;
@@ -93,7 +98,7 @@ void logWorker_dashboard(CONFIG *config) {
 
             int prog_fd = prog_pipes[i][1];
             
-            dashboard_send_progress(prog_fd, 0, 10000, 0, WORKING);
+            dashboard_send_progress(prog_fd, 0, 10000, 0, 1);
             long linhas_lidas = 0;
             long erros_encontrados = 0;
 
@@ -157,13 +162,13 @@ void logWorker_dashboard(CONFIG *config) {
 
                     // Atualiza a dashboard a cada 50 linhas para não entupir o pipe
                     if (linhas_lidas % 50 == 0) {
-                        dashboard_send_progress(prog_fd, linhas_lidas, 10000, erros_encontrados, WORKING);
+                        dashboard_send_progress(prog_fd, linhas_lidas, 10000, erros_encontrados, 1);
                         usleep(1000); 
                     }
                 }
                 close(fd);
             }
-            dashboard_send_progress(prog_fd, 10000, 10000, 3, DONE);
+            dashboard_send_progress(prog_fd, linhas_lidas, linhas_lidas, erros_encontrados, 2);
             close(prog_fd);
             exit(EXIT_SUCCESS);
         }
@@ -196,6 +201,7 @@ void logWorker_dashboard(CONFIG *config) {
                 local_status[i].total_lines = pm.total_lines;
                 local_status[i].progress_pct = pm.progress_pct;
                 local_status[i].state = pm.state;
+                worker_errors[i] = pm.errors;
 
                 if (pm.state == DONE) {
                     done[i] = 1; active--;
@@ -212,13 +218,15 @@ void logWorker_dashboard(CONFIG *config) {
         // Renderizar a cada 1 segundo estrito
         if (now - last_draw >= 1) {
             long cur_done = 0;
+            long total_errors_now = 0;
             for (int i = 0; i < nWorkers; i++){ 
                 cur_done += local_status[i].lines_processed;
+                total_errors_now += worker_errors[i];
             }
             events_sec = cur_done - prev_done;
             prev_done = cur_done;
             last_draw = now;
-        dashboard_render(local_status, nWorkers, start_time, events_sec, static_errors);
+        dashboard_render(local_status, nWorkers, start_time, events_sec, total_errors_now);
         }
         usleep(10000); // Evitar consumo excessivo de CPU no polling de não-bloqueio
     }
@@ -239,7 +247,7 @@ void dashboard_render(struct WorkerStatus *local_status, int nWorkers, time_t st
             long elapsed = (now - start_time);
             long eta = (gpct > 0.0f && gpct < 1.0f) ? (long)((float)elapsed / gpct * (1.0f - gpct)) : 0;
 
-            // RENDER VISUAL EM TERMINAL (Usando estritamente 'write' via buffers formatados)
+            // RENDER VISUAL EM TERMINAL
             char buf[1024], bar[64];
             write(STDOUT_FILENO, CLS, strlen(CLS));
             
@@ -257,6 +265,6 @@ void dashboard_render(struct WorkerStatus *local_status, int nWorkers, time_t st
             len = snprintf(buf, sizeof(buf), CYN "╠═══════════════════════════════════════════╣\n" RST CYN "║ " RST BOLD "Total Progress: [%s] %3d%%" CYN " ║\n" RST
                            CYN "║ " RST "Events/sec: " YEL "%-6ld" RST " | Errors: " RED "%-4ld" CYN " ║\n" RST
                            CYN "║ " RST "Elapsed: " GRN "%02ld:%02ld" RST " | ETA: " GRN "%02ld:%02ld" CYN "     ║\n╚═══════════════════════════════════════════╝\n",
-                           bar, (int)(gpct * 100), events_sec, static_errors, elapsed/60, elapsed%60, eta/60, eta%60);
+                           bar, (int)(gpct * 100), events_sec, errors, elapsed/60, elapsed%60, eta/60, eta%60);
             write(STDOUT_FILENO, buf, len);
 }
