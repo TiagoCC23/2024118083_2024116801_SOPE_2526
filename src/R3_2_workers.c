@@ -1,9 +1,11 @@
 #include "R3_2_workers.h"
+#include "R3_4_R4_2_dashboard.h"
 
 void logWorker(CONFIG *config) {
     int nWorkers = config->numProcessos;
     __pid_t pids[nWorkers];
     int fdsDuplo[nWorkers][2];  // array de pipes para cada worker
+    int prog_pipes[nWorkers][2]; // pipe para a dashboard
 
     // descobre todos os ficheiros .log
     char ficheiros[100][512];
@@ -26,10 +28,13 @@ void logWorker(CONFIG *config) {
         
         if (pids[i] == 0) {
             close(fdsDuplo[i][1]); // porta de escrita fechada
+            close(prog_pipes[i][0]); // filho fecha a leitura do progresso da dashboard
 
             for (int j = 0; j < i; j++) {
                 close(fdsDuplo[j][0]);
                 close(fdsDuplo[j][1]);
+                close(prog_pipes[j][0]);
+                close(prog_pipes[j][1]);
             }
 
             // calcula quantos ficheiros este worker específico vai receber
@@ -37,11 +42,13 @@ void logWorker(CONFIG *config) {
             int fim = inicio + (numFicheiros / nWorkers) + (i < numFicheiros % nWorkers ? 1 : 0);                        // se este worker é um dos primeiros, recebe 1 ficheiro extra, senão não recebe nada extra
             int ficheirosPerWorker = fim - inicio;
             // O Filho salta para a sua função de trabalho
-            workersLogic(fdsDuplo[i][0], i, config, ficheirosPerWorker);
+            workersLogic(fdsDuplo[i][0],prog_pipes[i][1] , i, config, ficheirosPerWorker);
   
         } 
         else {
             close(fdsDuplo[i][0]); // pai fecha a ponta de leitura
+            close(prog_pipes[i][1]);  // pai fecha a escrita de progresso
+            fcntl(prog_pipes[i][0], F_SETFL, O_NONBLOCK); // torna a leitura não bloqueante para o Pai não prender a interface
         }
     }
     for (int i = 0; i < numFicheiros; i++) {
@@ -80,10 +87,58 @@ void logWorker(CONFIG *config) {
         close(fdsDuplo[i][1]);
     }
 
-    // ciclo para evitar zombies
+// dashboard
+struct WorkerStatus ws[MAX_WORKERS];
+time_t start_time = time(NULL);
+time_t last_draw  = 0;
+long prev_done    = 0;
+long events_sec   = 0;
+long static_errors = 0;
+int done[nWorkers];
+int active = nWorkers;
+memset(done, 0, sizeof(done));
+
+for (int i = 0; i < nWorkers; i++) {
+    ws[i].pid             = pids[i];
+    ws[i].lines_processed = 0;
+    ws[i].total_lines     = 10000;
+    ws[i].progress_pct    = 0.0f;
+    ws[i].state           = WORKING;
+}
+
+while (active > 0) {
+    time_t now = time(NULL);
+
     for (int i = 0; i < nWorkers; i++) {
-        wait(NULL);
+        if (done[i]) continue;
+        ProgressMsg pm;
+        ssize_t n = read(prog_pipes[i][0], &pm, sizeof(pm));
+        if (n > 0) {
+            ws[i].lines_processed = pm.lines_processed;
+            ws[i].total_lines     = pm.total_lines;
+            ws[i].progress_pct    = pm.progress_pct;
+            ws[i].state           = pm.state;
+            static_errors         = pm.errors;
+            if (pm.state == DONE) {
+                done[i] = 1;
+                active--;
+                close(prog_pipes[i][0]);
+                waitpid(pids[i], NULL, 0); // evita zombie
+            }
+        }
     }
+
+    if (now - last_draw >= 1) {
+        long cur_done = 0;
+        for (int i = 0; i < nWorkers; i++) cur_done += ws[i].lines_processed;
+        events_sec = cur_done - prev_done;
+        prev_done  = cur_done;
+        last_draw  = now;
+        dashboard_render(ws, nWorkers, start_time, events_sec, static_errors);
+    }
+
+    usleep(10000);
+}
            
     printf("\n[Director] Todos os workers acabaram com sucesso\n");
 }
@@ -92,7 +147,7 @@ void logWorker(CONFIG *config) {
 
 
 // Função dedicada ao trabalho do Filho
-void workersLogic(int fd_leitura, int id, CONFIG *config, int numFIles) {
+void workersLogic(int fd_leitura, int prog_fd, int id, CONFIG *config, int numFIles){
     char buffer[1024];
     ssize_t bytesLidos;
     
@@ -101,6 +156,7 @@ void workersLogic(int fd_leitura, int id, CONFIG *config, int numFIles) {
     SyslogEntry log_syslog;
     NginxErrorEntry log_nginx;
     PipeMessage message;
+    long linhas_lidas_totais = 0; // para o dashboard
     message.total_lines = 0;
     message.errors = 0;
     message.warnings = 0; // inicia a 0 para evitar lixo de memória
@@ -135,6 +191,7 @@ void workersLogic(int fd_leitura, int id, CONFIG *config, int numFIles) {
                 if (buffer[j] == '\n') {
                     linhaBuffer[pos] = '\0';
                     if(config->verbose) printf("Worker %d: %s", id, linhaBuffer); // comentar o if para debug
+                    linhas_lidas_totais++;
                     
                     switch (actualFormat) {    
                         case FORMAT_APACHE:
@@ -185,6 +242,11 @@ void workersLogic(int fd_leitura, int id, CONFIG *config, int numFIles) {
                             break;
                     }
                     pos = 0;
+                    
+                    // CORREÇÃO: O progresso da dashboard só deve ser enviado após ler uma linha completa
+                    if (linhas_lidas_totais % 50 == 0) {
+                        dashboard_send_progress(prog_fd, linhas_lidas_totais, 10000, message.errors, WORKING);
+                    }
                 }
             }
         } // fecha o ciclo while
@@ -215,6 +277,10 @@ void workersLogic(int fd_leitura, int id, CONFIG *config, int numFIles) {
             strncpy(message.top_ip, ip_list[k], 15);
         }
     }
+    
+    // CORREÇÃO: A notificação de DONE e o fecho do pipe são feitos estritamente no final de todo o trabalho
+    dashboard_send_progress(prog_fd, linhas_lidas_totais, 10000, message.errors, DONE);
+    close(prog_fd);
 
     exit(EXIT_SUCCESS);
 }

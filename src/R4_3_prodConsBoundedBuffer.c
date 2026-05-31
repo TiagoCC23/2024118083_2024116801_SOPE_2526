@@ -50,7 +50,7 @@ long consumeErrors = 0;
     
     switch (config->modo) {
         case MODE_SECURITY: 
-            if (log_recebido.type == FORMAT_SYSLOG && log_recebido.is_auth_failure) {
+            if (log_recebido.format == FORMAT_SYSLOG && log_recebido.is_auth_failure) {
                 consumeErrors++;
                 falhas_auth_consecutivas++;
                 if (falhas_auth_consecutivas >= 5) { 
@@ -76,7 +76,7 @@ long consumeErrors = 0;
             break;
         
         case MODE_TRAFFIC:
-            if(log_recebido.type == FORMAT_APACHE && log_recebido.status_code == 200){ 
+            if(log_recebido.format == FORMAT_APACHE && log_recebido.status_code == 200){ 
                 trafego_consecutivo++;
                 if(trafego_consecutivo >= 50){ 
                     trafefoconsecutivosdetetados++;
@@ -89,7 +89,7 @@ long consumeErrors = 0;
             
         case MODE_FULL:
             // Testa Brute Force
-            if (log_recebido.type == FORMAT_SYSLOG && log_recebido.is_auth_failure) {
+            if (log_recebido.format == FORMAT_SYSLOG && log_recebido.is_auth_failure) {
                 consumeErrors++;
                 falhas_auth_consecutivas++;
                 if (falhas_auth_consecutivas >= 5) { 
@@ -111,7 +111,7 @@ long consumeErrors = 0;
             }
 
             // Testa Traffic
-            if (log_recebido.type == FORMAT_APACHE && log_recebido.status_code == 200) {
+            if (log_recebido.format == FORMAT_APACHE && log_recebido.status_code == 200) {
                 trafego_consecutivo++;
                 if (trafego_consecutivo >= 50) {
                     trafefoconsecutivosdetetados++;
@@ -128,13 +128,13 @@ long consumeErrors = 0;
     if (log_recebido.status_code >= 400 && log_recebido.status_code < 500){
         consumeWarnings++;
     } 
-    if (log_recebido.type == FORMAT_JSON && log_recebido.level == LOG_WARN){
+    if (log_recebido.format == FORMAT_JSON && log_recebido.level == LOG_WARN){
         consumeWarnings++;
     } 
-    if (log_recebido.type == FORMAT_SYSLOG && (log_recebido.is_sudo_attempt || log_recebido.is_firewall_block)){
+    if (log_recebido.format == FORMAT_SYSLOG && (log_recebido.is_sudo_attempt || log_recebido.is_firewall_block)){
         consumeWarnings++;
     }
-    if (log_recebido.type == FORMAT_NGINX && log_recebido.level == LOG_WARN){
+    if (log_recebido.format == FORMAT_NGINX && log_recebido.level == LOG_WARN){
         consumeWarnings++;
     } 
 
@@ -165,7 +165,7 @@ void *produtor(void *arg) {
             }
             LogEntry logAtual;
             memset(&logAtual, 0, sizeof(LogEntry));
-            logAtual.type = formato_atual;
+            logAtual.format = formato_atual;
             
             
             switch (formato_atual) {
@@ -239,7 +239,7 @@ void *consumidor(void *arg){
         pthread_mutex_unlock(&mutex_cons);
         sem_post(&podeProduzir);
         
-        if (log_recebido.type == FORMAT_UNKNOWN && log_recebido.status_code == -1) {
+        if (log_recebido.format == FORMAT_UNKNOWN && log_recebido.status_code == -1) {
             break; 
         }
 
@@ -302,7 +302,7 @@ void logWorkerProducerConsumer(CONFIG *config){
     for(int i = 0; i < numCons; i++) {
         LogEntry poison;
         memset(&poison, 0, sizeof(LogEntry));
-        poison.type = FORMAT_UNKNOWN;
+        poison.format = FORMAT_UNKNOWN;
         poison.status_code = -1;
 
         sem_wait(&podeProduzir);

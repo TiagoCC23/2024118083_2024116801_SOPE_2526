@@ -4,6 +4,7 @@
 #ifndef R4_3_PRODCONSBOUNDEDBUFFER_H
 #define R4_3_PRODCONSBOUNDEDBUFFER_H
 #include "R4_1_threads.h"
+#include "R3_1_logAnalyzer.h"
 
 #include<semaphore.h>
 #define TRUE 1
@@ -29,22 +30,7 @@ typedef struct {
 } ConsumidorArgs;
 
 
-typedef enum { 
-    LOG_APACHE, 
-    LOG_JSON, 
-    LOG_SYSLOG, 
-    LOG_NGINX 
-} LogType;
 
-typedef struct {
-    LogType type;
-    int status_code;          // Útil para erros 5xx (Apache/Nginx)
-    int level;                // Para JSON e Nginx
-    int is_auth_failure;      // Para Syslog (útil para brute-force)
-    int is_sudo_attempt;      // Para Syslog
-    int is_firewall_block;    // Para Syslog
-    char ip[64];              // Essencial para rastrear os IPs do brute-force
-} LogEntry;
 
 /**
  * 
