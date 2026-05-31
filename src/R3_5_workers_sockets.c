@@ -146,14 +146,13 @@ void logWorker_sockets(CONFIG *config){
             ssize_t n = recv(client_fds[i], &msg, sizeof(msg), MSG_DONTWAIT);
  
             if (n <= 0){
-                if((errno != EAGAIN && errno != EWOULDBLOCK)) {
+                if(n == 0 || (errno != EAGAIN && errno != EWOULDBLOCK)) {
                 done[i] = 1;
                 workers_active--;
                 close(client_fds[i]); // fechamos o socket
+                } 
              continue;
             }
-        }
-            
  
             if (msg.type == MSG_TYPE_NORMAL && msg.size == sizeof(NormalMsg)) {
                 NormalMsg norm_msg;

@@ -13,6 +13,15 @@
 #include "event_classifier.h"
 
 /**
+ * 
+ */
+typedef struct {
+    long total_lines;
+    long errors;
+    long warnings;
+} SHAREDSTATS;
+
+/**
  * @struct config
  * @brief esta struct permite armazenar os parametros que vao ser analisados
  */
@@ -26,6 +35,7 @@ typedef struct config
     char *outFiles;
     int numProdutores;
     int numConsumidores;
+    char *ipc_mode; // para gerir pipes, sockets, nasic, dashboard
 } CONFIG;
 
 /**

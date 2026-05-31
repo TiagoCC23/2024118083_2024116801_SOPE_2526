@@ -12,6 +12,7 @@
 #include <pthread.h> // para 4.2
 
 #include "R3_2_workers.h"
+#include "R4_3_prodConsBoundedBuffer.h"
 
 #define CLS  "\033[2J\033[H"
 #define BOLD "\033[1m"

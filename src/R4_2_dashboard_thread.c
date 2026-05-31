@@ -1,6 +1,7 @@
 #include "R3_4_R4_2_dashboard.h"
 
 static struct WorkerStatus mt_status[MAX_WORKERS];
+static long mt_thread_errors[MAX_WORKERS];
 static int mt_nworkers = 0;
 static long mt_errors = 0;
 static long mt_events_sec = 0;
@@ -33,12 +34,17 @@ static void *dashboard_worker_thread_fn(void *arg) {
 
         long cur_done = 0;
         long total_total = 0;
+        long total_errors_agora = 0;
+
         for (int i = 0; i < mt_nworkers; i++) {
             cur_done += mt_status[i].lines_processed;
             total_total += mt_status[i].total_lines;
+            total_errors_agora += mt_thread_errors[i];
         }
+
         mt_events_sec = cur_done - prev_done;
         prev_done = cur_done;
+        mt_errors = total_errors_agora;
 
         time_t now = time(NULL);
         long elapsed = (long)(now - mt_start_time);
@@ -96,10 +102,13 @@ void dashboard_start(void) {
 void dashboard_update_thread(int worker_id, long lines_processed, long total_lines, long errors, int state) {
     pthread_mutex_lock(&mt_lock);
     mt_status[worker_id].lines_processed = lines_processed;
+
     if (total_lines > 0) mt_status[worker_id].total_lines = total_lines;
+
     mt_status[worker_id].progress_pct = (mt_status[worker_id].total_lines > 0) ? (float)lines_processed / (float)mt_status[worker_id].total_lines : 0.0f;
     mt_status[worker_id].state = state;
-    mt_errors += errors; 
+    mt_thread_errors[worker_id] = errors;
+
     pthread_mutex_unlock(&mt_lock);
 }
 

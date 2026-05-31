@@ -19,6 +19,11 @@ void logWorker(CONFIG *config) {
             exit(EXIT_FAILURE);
         }
 
+        if (pipe(prog_pipes[i]) == -1) {
+            perror("Erro ao criar o pipe de progresso");
+            exit(EXIT_FAILURE);
+        }
+
         pids[i] = fork();
         
         if (pids[i] == -1) {
