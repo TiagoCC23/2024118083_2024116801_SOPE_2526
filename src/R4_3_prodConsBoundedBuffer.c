@@ -161,7 +161,7 @@ void *produtor(void *arg) {
         while (produz(fd, line) > 0) { 
             linhasLidas++;
             if (linhasLidas % 50 == 0) {
-                dashboard_update_thread(args->id, linhasLidas, 0, 0, WORKING); 
+                dashboard_update_thread(args->id, linhasLidas, 0, 0, 1); 
             }
             LogEntry logAtual;
             memset(&logAtual, 0, sizeof(LogEntry));
@@ -218,7 +218,7 @@ void *produtor(void *arg) {
         }
         close(fd);
     }
-    dashboard_update_thread(args->id, linhasLidas, 0, 0, DONE);
+    dashboard_update_thread(args->id, linhasLidas, 0, 0, 2);
     return NULL;
 }
     
@@ -245,10 +245,10 @@ void *consumidor(void *arg){
 
         long erros_encontrados = consome(log_recebido, args->config, args->stats); // Passamos a struct
         if (erros_encontrados > 0) {
-            dashboard_update_thread(dashboard_id, 0, 0, erros_encontrados, WORKING);
+            dashboard_update_thread(dashboard_id, 0, 0, erros_encontrados, 1);
         }
     }
-    dashboard_update_thread(dashboard_id, 0, 0, 0, DONE);
+    dashboard_update_thread(dashboard_id, 0, 0, 0, 2);
     return NULL;
 }
 

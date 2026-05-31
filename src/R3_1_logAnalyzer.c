@@ -3,13 +3,13 @@
 void parseArguments(int argc, char *argv[], CONFIG *config){
     if (argc<4){
         printf("Formato inválido!!\n");
-        fprintf(stderr,"Tente algo como: ./logAnalyzer /var/log/apache2 4 security --verbose --output=report.json --threads=8");
+        printf("Tente algo como: ./logAnalyzer /var/log/apache2 4 security --verbose --output=report.json --threads=8");
         exit(EXIT_FAILURE);
     }
     config->diretorio = argv[1];
     config->numProcessos = atoi(argv[2]);
     if(config->numProcessos <=0){
-        fprintf(stderr,"Tem de haver pelo menos um processo");
+        printf("Tem de haver pelo menos um processo");
         exit(EXIT_FAILURE);
     }
     
@@ -23,7 +23,7 @@ void parseArguments(int argc, char *argv[], CONFIG *config){
     } else if (strcmp(argv[3], "full") == 0) {
         config->modo = MODE_FULL;
     } else {
-        fprintf(stderr, "Erro: Modo '%s' invalido.\n", argv[3]);
+        printf("Erro: Modo '%s' invalido.\n", argv[3]);
         exit(EXIT_FAILURE);
     }
     config->verbose = 0;
