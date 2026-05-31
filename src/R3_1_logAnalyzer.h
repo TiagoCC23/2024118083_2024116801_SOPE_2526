@@ -29,7 +29,7 @@ typedef struct config
 {
     char *diretorio;
     int numProcessos;
-    int numThreads;
+    int numThreads;       //R4_1
     int modo;
     int verbose;
     char *outFiles;
