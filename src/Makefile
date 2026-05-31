@@ -12,6 +12,20 @@ ifeq ($(UNAME_S),Darwin)
     LDFLAGS = -pthread
 endif
 
+SRCS = main.c \
+       event_classifier.c \
+       log_parser.c \
+       R3_1_logAnalyzer.c \
+       R3_2_workers.c \
+       R3_3_workers_pipes.c \
+       R3_4_dashboard_processo.c \
+       R3_5_workers_sockets.c \
+       R4_1_threads.c \
+       R4_2_dashboard_thread.c \
+       R4_3_prodConsBoundedBuffer.c
+
+OBJS = $(SRCS:.c=.o)
+
 # Ficheiros
 PARSER_SRC = log_parser.c
 PARSER_OBJ = log_parser.o
@@ -40,6 +54,13 @@ NGINX_DIR = $(DATASET_DIR)/nginx
 .PHONY: all clean test generators datasets help
 
 all: classifier test generators
+
+logAnalyzer: $(OBJS)
+	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+	@echo "✓ Projeto Principal compilado com sucesso: ./logAnalyzer"
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
 
 # Compilar Classificador
 classifier: $(CLASSIFIER_BIN)

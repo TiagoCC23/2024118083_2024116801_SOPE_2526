@@ -30,6 +30,7 @@ void parseArguments(int argc, char *argv[], CONFIG *config){
     config-> outFiles = NULL;
     config->numConsumidores = 0;
     config->numProdutores = 0;
+    config->ipc_mode = "pipes";
 
 
     // ciclo para procurar pelo verbose, pelo output ou pelos threads
@@ -46,6 +47,8 @@ void parseArguments(int argc, char *argv[], CONFIG *config){
             config->numProdutores = atoi(argv[i] + 13);
         } else if(strncmp(argv[i], "--consumidores=", 15) == 0){
             config->numConsumidores = atoi(argv[i] + 15);
+        } else if(strncmp(argv[i], "--ipc=", 6) == 0){
+            config->ipc_mode = argv[i] + 6;
         }
     }
     
