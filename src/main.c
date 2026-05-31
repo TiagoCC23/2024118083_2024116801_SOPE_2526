@@ -24,13 +24,12 @@ int main(int argc, char *argv[]){
         printf("A guardar ficheiro em: %s\n", config.outFiles);
     }
     if(config.numProcessos > 0 && config.numThreads == 0){
-    logWorker_pipes(&config); // ou logWorker(&config); 
-    logWorker_sockets(&config);
-    
-
+        logWorker_pipes(&config); // ou logWorker(&config); 
+        logWorker_sockets(&config);
     } else if(config.numThreads > 0){
         logWorkerThreads(&config);
     }
+
     if(config.numProdutores > 0 && config.numConsumidores > 0){
     //logWorkerProducerConsumer(&config);
     }
