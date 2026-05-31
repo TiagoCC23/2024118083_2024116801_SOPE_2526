@@ -19,6 +19,11 @@ void logWorker(CONFIG *config) {
             exit(EXIT_FAILURE);
         }
 
+        if (pipe(prog_pipes[i]) == -1) {
+            perror("Erro ao criar o pipe de progresso");
+            exit(EXIT_FAILURE);
+        }
+
         pids[i] = fork();
         
         if (pids[i] == -1) {
@@ -62,12 +67,12 @@ void logWorker(CONFIG *config) {
         exit(EXIT_FAILURE);
     } */
 
-    char c;
+    /*char c;
     char linhaBuffer[2048];
     int pos = 0;
     int workerAtual = 0;
     
-    /*while (read(fdLog, &c, 1) > 0) {
+    while (read(fdLog, &c, 1) > 0) {
         linhaBuffer[pos] = c;
         pos++;
         
@@ -243,13 +248,12 @@ void workersLogic(int fd_leitura, int prog_fd, int id, CONFIG *config, int numFI
                     }
                     pos = 0;
                     
-                    // CORREÇÃO: O progresso da dashboard só deve ser enviado após ler uma linha completa
                     if (linhas_lidas_totais % 50 == 0) {
                         dashboard_send_progress(prog_fd, linhas_lidas_totais, 10000, message.errors, 1);
                     }
                 }
             }
-        } // fecha o ciclo while
+        }
 
         close(fdFile);
 

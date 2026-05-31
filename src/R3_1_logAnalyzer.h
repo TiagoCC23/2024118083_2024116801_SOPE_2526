@@ -20,12 +20,13 @@ typedef struct config
 {
     char *diretorio;
     int numProcessos;
-    int numThreads;
+    int numThreads;       //R4_1
     int modo;
     int verbose;
     char *outFiles;
-    int numProdutores;
-    int numConsumidores;
+    int numProdutores;    //R4_3
+    int numConsumidores;  //R4_3
+    char *ipc_mode; // Gere pipes/sockets/basic/dashboard
 } CONFIG;
 
 /**

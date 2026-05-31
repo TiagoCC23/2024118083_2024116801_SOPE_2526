@@ -23,15 +23,38 @@ int main(int argc, char *argv[]){
     if(config.outFiles){
         printf("A guardar ficheiro em: %s\n", config.outFiles);
     }
-    if(config.numProcessos > 0 && config.numThreads == 0){
-        logWorker_pipes(&config); // ou logWorker(&config); 
-        logWorker_sockets(&config);
-    } else if(config.numThreads > 0){
+    // Requisito 4.3 - Produtor-Consumidor
+    if(config.numProdutores > 0 && config.numConsumidores > 0){
+        printf("Produtor Consumidor\n");
+        logWorkerProducerConsumer(&config);
+    } 
+    // Requisitos 4.1 e 4.2 - Worker Threads
+    else if(config.numThreads > 0){
+        printf("Worker Threads\n");
         logWorkerThreads(&config);
+    } 
+    // Multi-processamento
+    else if(config.numProcessos > 0){
+        if (strcmp(config.ipc_mode, "basic") == 0) {
+            printf("Multi Processo\n");
+            logWorker(&config);
+        } else if (strcmp(config.ipc_mode, "pipes") == 0) {
+            printf("Comunicação via Pipes\n");
+            logWorker_pipes(&config);
+        } else if (strcmp(config.ipc_mode, "dashboard") == 0) {
+            printf("Dashboard de Processos\n");
+            logWorker_dashboard(&config);
+        } else if (strcmp(config.ipc_mode, "sockets") == 0) {
+            printf("Comunicação via Unix Domain Sockets\n");
+            logWorker_sockets(&config);
+        } else {
+            fprintf(stderr, "Modo IPC '%s' não reconhecido. Opções: basic, pipes, dashboard, sockets.\n", config.ipc_mode);
+            return 1;
+        }
+    } else {
+        fprintf(stderr, "Erro de Configuração: Defina num_processos > 0, --threads, ou --produtores/--consumidores.\n");
+        return 1;
     }
 
-    if(config.numProdutores > 0 && config.numConsumidores > 0){
-    //logWorkerProducerConsumer(&config);
-    }
     return 0;
 }
