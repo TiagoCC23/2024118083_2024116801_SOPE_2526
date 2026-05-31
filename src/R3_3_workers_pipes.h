@@ -107,6 +107,6 @@ void send_msg(int fd_write, int type, const void *payload, int size);
  * @param start Índice inicial do lote de ficheiros deste worker.
  * @param end Índice final (exclusive) do lote.
  */
-void filho_logic(int fd_write, int id, CONFIG *config, char ficheiros[][512], int start, int end);
+void filho_logic(int fd_write, int prog_fd, int id, CONFIG *config, char ficheiros[][512], int start, int end);
 
 #endif

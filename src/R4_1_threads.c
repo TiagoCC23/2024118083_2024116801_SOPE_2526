@@ -1,7 +1,8 @@
 #include "R4_1_threads.h"
+#include "R3_4_R4_2_dashboard.h"
+
 SHAREDSTATS globalStats = {0, 0, 0};
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-
 
 void* threadWorker(void* arg){
     THREADDATA *data = (THREADDATA*)arg;
@@ -77,9 +78,17 @@ void* threadWorker(void* arg){
         default:
             break;
         }
-         pos=0; // limpa a linha
+
+            if (linesWorker % 100 == 0) {
+                dashboard_update_thread(data->id, linesWorker, 10000, errorsWorker, 1); // 1 = WORKING
+            }
+
+            pos=0; // limpa a linha
+        }
     }
-    }
+
+    dashboard_update_thread(data->id, linesWorker, linesWorker, errorsWorker, 2); // 2 = DONE
+
     pthread_mutex_lock(&mutex);
     globalStats.total_lines += linesWorker;
     globalStats.errors += errorsWorker;
@@ -154,6 +163,7 @@ long currentPos= 0;
 // divide os blocos por threads
 long chunkSize = totalSize/workers; // calcula o tamanho do bloco do que o thread vai ler
 for(int i=0; i<workers; i++){
+    tData[i].id = i;
     tData[i].buffer_completo = buffer;
     tData[i].config = config;
     tData[i].offset_start = currentPos;
@@ -168,6 +178,7 @@ for(int i=0; i<workers; i++){
         tData[i].offset_end = end+1;
     }
     currentPos = tData[i].offset_end; // atualizmos para a proxima thread
+    dashboard_update_thread(i, 0, 10000, 0, 1);
     pthread_create(&threads[i], NULL, threadWorker, &tData[i]); // criaçao da thread
 }
 for(int i =0; i<workers; i++){

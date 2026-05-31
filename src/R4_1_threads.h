@@ -22,7 +22,6 @@ typedef struct {
     long offset_end;          /**< Onde esta thread para*/
     CONFIG *config;           /**< Configurações (modo, etc.) */
     LogFormat actualFormart;   /**< */ 
-    
 } THREADDATA;
 
 /**
