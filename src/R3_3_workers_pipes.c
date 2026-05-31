@@ -386,8 +386,11 @@ void filho_logic(int fd_write, int prog_fd, int id, CONFIG *config, char ficheir
     // Envia sinal que terminou para liberar o pai do "while"
     send_msg(fd_write, MSG_TYPE_DONE, NULL, 0); 
 
-    dashboard_send_progress(prog_fd, norm_msg.total_lines, norm_msg.total_lines, norm_msg.errors, 2);
-    close(prog_fd);
+    if (prog_fd != -1) {
+        dashboard_send_progress(prog_fd, norm_msg.total_lines, norm_msg.total_lines, norm_msg.errors, 2);
+        close(prog_fd);
+    }
+    
     close(fd_write);
     exit(EXIT_SUCCESS); // garante que o filho morre aqui e não continua rodando o código do pai
 }

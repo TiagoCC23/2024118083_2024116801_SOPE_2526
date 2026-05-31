@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include "R3_1_logAnalyzer.h"
 #include "R3_2_workers.h"
 #include "R3_3_workers_pipes.h"
@@ -20,41 +21,37 @@ int main(int argc, char *argv[]){
     printf("Número de tarefas: %d\n", config.numThreads);
     printf("Modo escolhido: %d\n",config.modo);
     printf("Modo Verboso: %s\n", config.verbose ? "Ligado" : "Desligado");
-    if(config.outFiles){
-        printf("A guardar ficheiro em: %s\n", config.outFiles);
-    }
-    // Requisito 4.3 - Produtor-Consumidor
+    
     if(config.numProdutores > 0 && config.numConsumidores > 0){
-        printf("Produtor Consumidor\n");
+        printf("[Execução] Ativando Modelo Produtor-Consumidor...\n");
         logWorkerProducerConsumer(&config);
     } 
-    // Requisitos 4.1 e 4.2 - Worker Threads
+
     else if(config.numThreads > 0){
-        printf("Worker Threads\n");
+        printf("[Execução] Ativando Modelo de Worker Threads...\n");
         logWorkerThreads(&config);
     } 
-    // Multi-processamento
+   
     else if(config.numProcessos > 0){
         if (strcmp(config.ipc_mode, "basic") == 0) {
-            printf("Multi Processo\n");
+            printf("Multi-Processo - basic - (Req. B)...\n");
             logWorker(&config);
         } else if (strcmp(config.ipc_mode, "pipes") == 0) {
-            printf("Comunicação via Pipes\n");
+            printf("Comunicação via Pipes (Req. C)...\n");
             logWorker_pipes(&config);
         } else if (strcmp(config.ipc_mode, "dashboard") == 0) {
-            printf("Dashboard de Processos\n");
+            printf("Dashboard de Processos (Req. D)...\n");
             logWorker_dashboard(&config);
         } else if (strcmp(config.ipc_mode, "sockets") == 0) {
-            printf("Comunicação via Unix Domain Sockets\n");
+            printf("Comunicação via Unix Domain Sockets (Req. E)...\n");
             logWorker_sockets(&config);
         } else {
-            fprintf(stderr, "Modo IPC '%s' não reconhecido. Opções: basic, pipes, dashboard, sockets.\n", config.ipc_mode);
+            perror("Modo IPC '%s' não reconhecido. Opções: basic, pipes, dashboard, sockets.\n");
             return 1;
         }
     } else {
-        fprintf(stderr, "Erro de Configuração: Defina num_processos > 0, --threads, ou --produtores/--consumidores.\n");
+        perror("Erro de Configuração: Defina num_processos > 0, --threads, ou --produtores/--consumidores.\n");
         return 1;
     }
-
     return 0;
 }

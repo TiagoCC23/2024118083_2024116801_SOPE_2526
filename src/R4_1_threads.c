@@ -25,8 +25,12 @@ void* threadWorker(void* arg){
     // processa as linhas do bloco
     for(long i=start; i<end; i++){
         char c = buffer[i];
-        currentLine[pos]=c;
-        pos++;
+        
+        if (pos < 2047) { // evitar overflow
+            currentLine[pos] = c;
+            pos++;
+        }
+
         if(c == '\n'){
             currentLine[pos]='\0';
             //printf("[Thread %d] %s", data->id, currentLine); // descomentar para o debug
@@ -79,8 +83,10 @@ void* threadWorker(void* arg){
             break;
         }
 
-            if (linesWorker % 100 == 0) {
+            if (linesWorker % 10 == 0) {
                 dashboard_update_thread(data->id, linesWorker, 10000, errorsWorker, 1); // 1 = WORKING
+
+                usleep(2000); // para ir devaagar
             }
 
             pos=0; // limpa a linha
@@ -94,6 +100,7 @@ void* threadWorker(void* arg){
     globalStats.errors += errorsWorker;
     globalStats.warnings += warningsWorker;
     pthread_mutex_unlock(&mutex);
+
     return NULL;
 }
 
@@ -169,6 +176,7 @@ for(int i=0; i<workers; i++){
     tData[i].offset_start = currentPos;
     tData[i].actualFormart = fileFormat;
     long end = currentPos + chunkSize;
+
     if(i == (workers-1)){
         tData[i].offset_end = totalSize; // caso seja a ultima thread, nao precisa de procurar pelo \n
     } else {
@@ -178,7 +186,11 @@ for(int i=0; i<workers; i++){
         tData[i].offset_end = end+1;
     }
     currentPos = tData[i].offset_end; // atualizmos para a proxima thread
-    dashboard_update_thread(i, 0, 10000, 0, 1);
+    
+    // avisa o painel que esta thread vai começar o  chunk
+    long estimativa = (tData[i].offset_end - tData[i].offset_start) / 80;
+    dashboard_update_thread(i, 0, estimativa > 0 ? estimativa : 100, 0, 1);
+
     pthread_create(&threads[i], NULL, threadWorker, &tData[i]); // criaçao da thread
 }
 for(int i =0; i<workers; i++){
