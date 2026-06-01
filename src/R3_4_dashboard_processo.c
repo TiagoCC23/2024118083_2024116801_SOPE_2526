@@ -49,7 +49,7 @@ void logWorker_dashboard(CONFIG *config) {
     }
 
     time_t start_time = time(NULL);
-    time_t last_draw = 0;
+    time_t last_draw = start_time;
     long prev_done = 0;
     long events_sec = 0;
 
@@ -204,13 +204,16 @@ void logWorker_dashboard(CONFIG *config) {
                 worker_errors[i] = pm.errors;
 
                 if (pm.state == DONE) {
-                    done[i] = 1; active--;
+                    done[i] = 1; 
+                    active--;
                     close(prog_pipes[i][0]);
                 }
                 
             } else if (n == 0) { // Pipe fechou inesperadamente
                 local_status[i].state = DONE;
-                done[i] = 1; active--;
+                local_status[i].progress_pct = 1.0f;
+                done[i] = 1; 
+                active--;
                 close(prog_pipes[i][0]);
             }
         }
@@ -231,6 +234,14 @@ void logWorker_dashboard(CONFIG *config) {
         usleep(10000); // Evitar consumo excessivo de CPU no polling de não-bloqueio
     }
 
+    long total_errors_final = 0;
+    for (int i = 0; i < nWorkers; i++) {
+        local_status[i].state = DONE;
+        local_status[i].progress_pct = 1.0f;
+        total_errors_final += worker_errors[i];
+    }
+    dashboard_render(local_status, nWorkers, start_time, 0, total_errors_final);
+
     for (int i = 0; i < nWorkers; i++) waitpid(pids[i], NULL, 0);
 }
 void dashboard_render(struct WorkerStatus *local_status, int nWorkers, time_t start_time, long events_sec, long errors) {
@@ -241,7 +252,6 @@ void dashboard_render(struct WorkerStatus *local_status, int nWorkers, time_t st
                 cur_done += local_status[i].lines_processed;
                 total_total += local_status[i].total_lines;
             }
-            
 
             float gpct = (total_total > 0) ? (float)cur_done / (float)total_total : 0.0f;
             long elapsed = (now - start_time);
