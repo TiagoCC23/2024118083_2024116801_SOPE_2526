@@ -126,7 +126,7 @@ void logWorker_sockets(CONFIG *config){
         ws[i].lines_processed = 0;
         ws[i].total_lines = 10000;
         ws[i].progress_pct = 0.0f;
-        ws[i].state = WORKING;
+        ws[i].state = 1;
     }
     while (workers_active > 0) {
         for (int i = 0; i < nWorkers; i++) {

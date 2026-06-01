@@ -67,12 +67,12 @@ void logWorker(CONFIG *config) {
         exit(EXIT_FAILURE);
     } */
 
-    char c;
+    /*char c;
     char linhaBuffer[2048];
     int pos = 0;
     int workerAtual = 0;
     
-    /*while (read(fdLog, &c, 1) > 0) {
+    while (read(fdLog, &c, 1) > 0) {
         linhaBuffer[pos] = c;
         pos++;
         
@@ -108,7 +108,7 @@ for (int i = 0; i < nWorkers; i++) {
     ws[i].lines_processed = 0;
     ws[i].total_lines     = 10000;
     ws[i].progress_pct    = 0.0f;
-    ws[i].state           = WORKING;
+    ws[i].state           = 1;
 }
 
 while (active > 0) {
@@ -124,7 +124,7 @@ while (active > 0) {
             ws[i].progress_pct    = pm.progress_pct;
             ws[i].state           = pm.state;
             static_errors         = pm.errors;
-            if (pm.state == DONE) {
+            if (pm.state == 2) {
                 done[i] = 1;
                 active--;
                 close(prog_pipes[i][0]);
@@ -248,13 +248,12 @@ void workersLogic(int fd_leitura, int prog_fd, int id, CONFIG *config, int numFI
                     }
                     pos = 0;
                     
-                    // CORREÇÃO: O progresso da dashboard só deve ser enviado após ler uma linha completa
                     if (linhas_lidas_totais % 50 == 0) {
-                        dashboard_send_progress(prog_fd, linhas_lidas_totais, 10000, message.errors, WORKING);
+                        dashboard_send_progress(prog_fd, linhas_lidas_totais, 10000, message.errors, 1);
                     }
                 }
             }
-        } // fecha o ciclo while
+        }
 
         close(fdFile);
 
@@ -284,7 +283,7 @@ void workersLogic(int fd_leitura, int prog_fd, int id, CONFIG *config, int numFI
     }
     
     // CORREÇÃO: A notificação de DONE e o fecho do pipe são feitos estritamente no final de todo o trabalho
-    dashboard_send_progress(prog_fd, linhas_lidas_totais, 10000, message.errors, DONE);
+    dashboard_send_progress(prog_fd, linhas_lidas_totais, 10000, message.errors, 2);
     close(prog_fd);
 
     exit(EXIT_SUCCESS);

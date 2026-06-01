@@ -9,7 +9,7 @@ sem_t podeConsumir;
 
 LogEntry buffer[MAX_BUFFER];
 
-SHAREDSTATS globalStats = {0, 0, 0};
+SHAREDSTATS global_Stats = {0, 0, 0};
 int erros_5xx_consecutivos = 0;
 int falhas_auth_consecutivas = 0; // Variáveis para os ataques e tentativas brute force
 int trafego_consecutivo = 0;
@@ -290,7 +290,7 @@ void logWorkerProducerConsumer(CONFIG *config){
     for(long i = 0; i < numCons; i++){
         argsCons[i].config = config;
         argsCons[i].id = i;
-        argsCons[i].stats = &globalStats;
+        argsCons[i].stats = &global_Stats;
         pthread_create(&tCons[i], NULL, consumidor, &argsCons[i]);
     }
 
@@ -321,6 +321,6 @@ void logWorkerProducerConsumer(CONFIG *config){
     sem_destroy(&podeConsumir);
 
     dashboard_stop();
-    printf("Total de linhas: %ld\nErros: %ld\nAvisos: %ld\n", globalStats.total_lines, globalStats.errors, globalStats.warnings);
+    printf("Total de linhas: %ld\nErros: %ld\nAvisos: %ld\n", global_Stats.total_lines, global_Stats.errors, global_Stats.warnings);
     printf("Tentativas de Brute force: %d\nErros HTTP 5xx: %d\nTráfego detetado: %d\n", bruteForcesDetetatos, erros5xxConsecutivosDetetados, trafefoconsecutivosdetetados);
 }
